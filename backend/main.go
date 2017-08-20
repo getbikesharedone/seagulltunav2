@@ -3,12 +3,16 @@ package main
 import (
 	"compress/gzip"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"log"
 	"math"
 	"net/http"
+	"net/url"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -32,14 +36,56 @@ func main() {
 
 }
 
+type Shortnet struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Location `json:"location"`
+	distance float64 `json:"distance"`
+}
+
+func (l Location) distance(lat, lng float64) float64 {
+	R := 6371e3 // radius
+
+	φ1 := (math.Pi * lat) / 180
+	φ2 := (math.Pi * lng) / 180
+
+	Δφ := (l.Latitude - lat) * math.Pi / 180
+	Δλ := (l.Longitude - lng) * math.Pi / 180
+
+	a := math.Sin(Δφ/2)*math.Sin(Δφ/2) +
+		math.Cos(φ1)*math.Cos(φ2)*
+			math.Sin(Δλ/2)*math.Sin(Δλ/2)
+	return R * 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
+}
+
+func parseNetworksQuery(u url.Values) (float64, float64, float64, error) {
+	_, latok := u["lat"]
+	_, lngok := u["lng"]
+	_, rngok := u["rng"]
+	if !latok || !lngok || !rngok {
+		return 0, 0, 0, errors.New("invalid")
+	}
+
+	lat, err := strconv.ParseFloat(u["lat"][0], 10)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+
+	lng, err := strconv.ParseFloat(u["lng"][0], 10)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+
+	rng, err := strconv.ParseFloat(u["rng"][0], 10)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+
+	return lat, lng, rng, nil
+}
+
 func listNetworksHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("listNetworks", r.RemoteAddr, r.RequestURI)
-
-	type Shortnet struct {
-		ID       string `json:"id"`
-		Name     string `json:"name"`
-		Location `json:"location"`
-	}
 
 	type Response struct {
 		Networks []Shortnet `json:"networks"`
@@ -53,13 +99,39 @@ func listNetworksHandler(w http.ResponseWriter, r *http.Request) {
 			Location: v.Location,
 		}
 		networks.Networks = append(networks.Networks, short)
-
 	}
 
+	q := r.URL.Query()
+	lat, lng, rng, err := parseNetworksQuery(q)
+
+	if err != nil {
+		log.Println("oops", err)
+		enc := json.NewEncoder(w)
+		if err := enc.Encode(networks); err != nil {
+			log.Println(err)
+		}
+		return
+	}
+
+	sort.Slice(networks.Networks, func(i, j int) bool {
+		return networks.Networks[i].Location.distance(lat, lng) < networks.Networks[j].Location.distance(lat, lng)
+	})
+
+	var within Response
+	for _, v := range networks.Networks {
+		if v.Location.distance(lat, lng) < rng {
+			within.Networks = append(within.Networks, v)
+		} else {
+			break
+		}
+	}
+
+	fmt.Println(within)
 	enc := json.NewEncoder(w)
-	if err := enc.Encode(networks); err != nil {
+	if err := enc.Encode(within); err != nil {
 		log.Println(err)
 	}
+	// for k, v, range :=
 
 }
 
@@ -200,41 +272,6 @@ func (n *Network) UnmarshalJSON(data []byte) error {
 		}
 	}
 	return nil
-}
-
-type stations []Station
-
-func (ss stations) within(lat, lng, dist float64) stations {
-
-	sort.Slice(ss, func(i, j int) bool {
-		return ss[i].distance(lat, lng) < ss[j].distance(lat, lng)
-	})
-
-	var abriged []Station
-	for _, v := range ss {
-		if v.distance(lat, lng) < dist {
-			abriged = append(abriged, v)
-		} else {
-			return abriged
-		}
-	}
-	return abriged
-}
-
-func (s *Station) distance(lat, lng float64) float64 {
-	// http://www.movable-type.co.uk/scripts/latlong.html
-	R := 6371e3 // radius
-
-	φ1 := (math.Pi * lat) / 180
-	φ2 := (math.Pi * lng) / 180
-
-	Δφ := (s.Latitude - lat) * math.Pi / 180
-	Δλ := (s.Longitude - lng) * math.Pi / 180
-
-	a := math.Sin(Δφ/2)*math.Sin(Δφ/2) +
-		math.Cos(φ1)*math.Cos(φ2)*
-			math.Sin(Δλ/2)*math.Sin(Δλ/2)
-	return R * 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
 }
 
 type gzipResponseWriter struct {
