@@ -3,22 +3,20 @@
 package main
 
 import (
-	"compress/gzip"
 	"encoding/json"
-	"errors"
-	"io"
 	"log"
 	"math"
 	"net/http"
-	"net/url"
 	"os"
-	"sort"
-	"strconv"
-	"strings"
 	"time"
+
+	"github.com/kataras/iris"
+	"github.com/kataras/iris/context"
 )
 
+// in lou of database for now
 var bsn bikeShareNetwork
+var netmap = make(map[string]Network)
 
 func main() {
 	log.Println("starting seagull")
@@ -28,67 +26,44 @@ func main() {
 		log.Fatal(err)
 	}
 
-	http.Handle("/", http.FileServer(http.Dir("../frontend/www")))
-	http.HandleFunc("/api/networks", GzipFunc(listNetworksHandler))
-
-	if err := http.ListenAndServe(":8080", nil); err != nil {
-		log.Fatal(err)
+	// read only map from here
+	// replace with database
+	for _, v := range bsn.Networks {
+		netmap[v.ID] = v
 	}
 
+	srv := iris.New()
+	srv.StaticWeb("/", "../frontend/www")
+	srv.Get("/api/network/{id:string}", getDetail)
+	srv.Get("/api/network", getNetworkList)
+	srv.Run(iris.Addr(":8080"))
 }
 
-func (l Location) distance(lat, lng float64) float64 {
-	R := 6371e3 // radius
-
-	φ1 := (math.Pi * lat) / 180
-	φ2 := (math.Pi * lng) / 180
-
-	Δφ := (l.Latitude - lat) * math.Pi / 180
-	Δλ := (l.Longitude - lng) * math.Pi / 180
-
-	a := math.Sin(Δφ/2)*math.Sin(Δφ/2) +
-		math.Cos(φ1)*math.Cos(φ2)*
-			math.Sin(Δλ/2)*math.Sin(Δλ/2)
-	return R * 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
-}
-
-var (
-	ErrRangeQuery    = errors.New("failed to parse range query")
-	ErrLocationQuery = errors.New("failed to parse location query")
-)
-
-func parseNetworksQuery(u url.Values) (float64, float64, float64, error) {
-	_, latok := u["lat"]
-	_, lngok := u["lng"]
-	_, rngok := u["rng"]
-	if !latok || !lngok {
-		return 0, 0, 0, ErrLocationQuery
+func getDetail(ctx context.Context) {
+	id := ctx.Params().Get("id")
+	if id == "" {
+		ctx.NotFound()
 	}
+	net, ok := netmap[id]
+	if !ok {
+		log.Printf("network %v does not exist", id)
+		ctx.NotFound()
+	}
+	ctx.Gzip(true)
+	ctx.JSON(net)
+}
 
-	lat, err := strconv.ParseFloat(u["lat"][0], 10)
+type Where struct {
+	Lat, Lng float64
+	Rng      float64
+}
+
+func getNetworkList(ctx context.Context) {
+	at := Where{}
+	err := ctx.ReadForm(&at)
 	if err != nil {
-		return 0, 0, 0, err
+		log.Println(err)
 	}
-
-	lng, err := strconv.ParseFloat(u["lng"][0], 10)
-	if err != nil {
-		return lat, 0, 0, err
-	}
-	rng := 100000.0 // set default range
-	if rngok {
-		rng, err = strconv.ParseFloat(u["rng"][0], 10)
-		if err != nil {
-			return lat, lng, 100000, ErrRangeQuery
-		}
-	}
-
-	return lat, lng, rng, nil
-}
-
-func listNetworksHandler(w http.ResponseWriter, r *http.Request) {
-	log.Println("listNetworks", r.RemoteAddr, r.RequestURI)
-	defer timeLog(time.Now(), "listNetworks")
-
 	type Shortnet struct {
 		ID       string `json:"id"`
 		Name     string `json:"name"`
@@ -98,54 +73,53 @@ func listNetworksHandler(w http.ResponseWriter, r *http.Request) {
 	type Response struct {
 		Networks []Shortnet `json:"networks"`
 	}
+	ctx.Gzip(true)
 
-	var networks Response
-	for _, v := range bsn.Networks {
-		short := Shortnet{
-			ID:       v.ID,
-			Name:     v.Name,
-			Location: v.Location,
-		}
-		networks.Networks = append(networks.Networks, short)
-	}
-
-	q := r.URL.Query()
-	lat, lng, rng, err := parseNetworksQuery(q)
-
-	if err != nil {
-		if err != ErrRangeQuery {
-			log.Println("oops", err)
-			enc := json.NewEncoder(w)
-			if err := enc.Encode(networks); err != nil {
-				log.Println(err)
+	if at.Lat == 0 || at.Lng == 0 {
+		var short Response
+		for _, v := range bsn.Networks {
+			s := Shortnet{
+				ID:       v.ID,
+				Name:     v.Name,
+				Location: v.Location,
 			}
-			return
+			short.Networks = append(short.Networks, s)
 		}
-		log.Println(err)
+		ctx.JSON(short)
 	}
-	for k, v := range networks.Networks {
-		networks.Networks[k].Location.Distance = int(v.Location.distance(lat, lng))
+	if at.Rng == 0 {
+		at.Rng = 160000 // 160 km, 100 Miles
 	}
-
-	sort.Slice(networks.Networks, func(i, j int) bool {
-		return networks.Networks[i].Location.Distance < networks.Networks[j].Location.Distance
-	})
-
-	var within Response
-	for _, v := range networks.Networks {
-		if float64(v.Location.Distance) < rng {
-			within.Networks = append(within.Networks, v)
-		} else {
-			// since it is a sorted list we can just exit loop
-			break
+	// compute diatnce
+	var localised Response
+	for _, v := range bsn.Networks {
+		distance := v.Location.howfar(at)
+		if distance < at.Rng {
+			s := Shortnet{
+				ID:       v.ID,
+				Name:     v.Name,
+				Location: v.Location,
+			}
+			s.Location.Distance = int(distance)
+			localised.Networks = append(localised.Networks, s)
 		}
 	}
+	ctx.JSON(localised)
+}
 
-	enc := json.NewEncoder(w)
-	if err := enc.Encode(within); err != nil {
-		log.Println(err)
-	}
+func (l Location) howfar(at Where) float64 {
+	R := 6371e3 // radius
 
+	φ1 := (math.Pi * at.Lat) / 180
+	φ2 := (math.Pi * at.Lng) / 180
+
+	Δφ := (l.Latitude - at.Lat) * math.Pi / 180
+	Δλ := (l.Longitude - at.Lng) * math.Pi / 180
+
+	a := math.Sin(Δφ/2)*math.Sin(Δφ/2) +
+		math.Cos(φ1)*math.Cos(φ2)*
+			math.Sin(Δλ/2)*math.Sin(Δλ/2)
+	return R * 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
 }
 
 func getSeedData() (bikeShareNetwork, error) {
@@ -220,7 +194,6 @@ type bikeShareNetwork struct {
 
 type Network struct {
 	Company  []string `json:"company"`
-	Href     string   `json:"href"`
 	ID       string   `json:"id"`
 	Location `json:"location"`
 	Name     string    `json:"name"`
@@ -250,7 +223,7 @@ type Location struct {
 }
 
 func (n *Network) UnmarshalJSON(data []byte) error {
-	// Need too handle the one case company strings vs []string
+	// Need too handle the one case where company is string vs []string
 	type ServerNetworks Network
 	aux := &struct {
 		Company interface{} `json:"company"`
@@ -286,33 +259,6 @@ func (n *Network) UnmarshalJSON(data []byte) error {
 		}
 	}
 	return nil
-}
-
-type gzipResponseWriter struct {
-	io.Writer
-	http.ResponseWriter
-}
-
-func GzipFunc(fn http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
-			fn(w, r)
-			w.Header().Set("Pragma", "no-cache")
-			w.Header().Set("Content-Type", "application/json")
-			return
-		}
-		w.Header().Set("Content-Encoding", "gzip")
-		w.Header().Set("Pragma", "no-cache")
-		w.Header().Set("Content-Type", "application/json")
-		gz := gzip.NewWriter(w)
-		defer gz.Close()
-		gzr := gzipResponseWriter{Writer: gz, ResponseWriter: w}
-		fn(gzr, r)
-	}
-}
-
-func (w gzipResponseWriter) Write(b []byte) (int, error) {
-	return w.Writer.Write(b)
 }
 
 func timeLog(start time.Time, name string) {
