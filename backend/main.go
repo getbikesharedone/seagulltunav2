@@ -4,7 +4,6 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"log"
 	"math"
@@ -36,13 +35,6 @@ func main() {
 
 }
 
-type Shortnet struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Location `json:"location"`
-	distance float64 `json:"distance"`
-}
-
 func (l Location) distance(lat, lng float64) float64 {
 	R := 6371e3 // radius
 
@@ -58,12 +50,17 @@ func (l Location) distance(lat, lng float64) float64 {
 	return R * 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
 }
 
+var (
+	ErrRangeQuery    = errors.New("failed to parse range query")
+	ErrLocationQuery = errors.New("failed to parse location query")
+)
+
 func parseNetworksQuery(u url.Values) (float64, float64, float64, error) {
 	_, latok := u["lat"]
 	_, lngok := u["lng"]
 	_, rngok := u["rng"]
-	if !latok || !lngok || !rngok {
-		return 0, 0, 0, errors.New("invalid")
+	if !latok || !lngok {
+		return 0, 0, 0, ErrLocationQuery
 	}
 
 	lat, err := strconv.ParseFloat(u["lat"][0], 10)
@@ -73,12 +70,14 @@ func parseNetworksQuery(u url.Values) (float64, float64, float64, error) {
 
 	lng, err := strconv.ParseFloat(u["lng"][0], 10)
 	if err != nil {
-		return 0, 0, 0, err
+		return lat, 0, 0, err
 	}
-
-	rng, err := strconv.ParseFloat(u["rng"][0], 10)
-	if err != nil {
-		return 0, 0, 0, err
+	rng := 100000.0 // set default range
+	if rngok {
+		rng, err = strconv.ParseFloat(u["rng"][0], 10)
+		if err != nil {
+			return lat, lng, 100000, ErrRangeQuery
+		}
 	}
 
 	return lat, lng, rng, nil
@@ -86,6 +85,13 @@ func parseNetworksQuery(u url.Values) (float64, float64, float64, error) {
 
 func listNetworksHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("listNetworks", r.RemoteAddr, r.RequestURI)
+	defer timeLog(time.Now(), "listNetworks")
+
+	type Shortnet struct {
+		ID       string `json:"id"`
+		Name     string `json:"name"`
+		Location `json:"location"`
+	}
 
 	type Response struct {
 		Networks []Shortnet `json:"networks"`
@@ -105,38 +111,43 @@ func listNetworksHandler(w http.ResponseWriter, r *http.Request) {
 	lat, lng, rng, err := parseNetworksQuery(q)
 
 	if err != nil {
-		log.Println("oops", err)
-		enc := json.NewEncoder(w)
-		if err := enc.Encode(networks); err != nil {
-			log.Println(err)
+		if err != ErrRangeQuery {
+			log.Println("oops", err)
+			enc := json.NewEncoder(w)
+			if err := enc.Encode(networks); err != nil {
+				log.Println(err)
+			}
+			return
 		}
-		return
+		log.Println(err)
+	}
+	for k, v := range networks.Networks {
+		networks.Networks[k].Location.Distance = int(v.Location.distance(lat, lng))
 	}
 
 	sort.Slice(networks.Networks, func(i, j int) bool {
-		return networks.Networks[i].Location.distance(lat, lng) < networks.Networks[j].Location.distance(lat, lng)
+		return networks.Networks[i].Location.Distance < networks.Networks[j].Location.Distance
 	})
 
 	var within Response
 	for _, v := range networks.Networks {
-		if v.Location.distance(lat, lng) < rng {
+		if float64(v.Location.Distance) < rng {
 			within.Networks = append(within.Networks, v)
 		} else {
+			// since it is a sorted list we can just exit loop
 			break
 		}
 	}
 
-	fmt.Println(within)
 	enc := json.NewEncoder(w)
 	if err := enc.Encode(within); err != nil {
 		log.Println(err)
 	}
-	// for k, v, range :=
 
 }
 
 func getSeedData() (bikeShareNetwork, error) {
-
+	defer timeLog(time.Now(), "getSeedData")
 	// check if we have it first
 	if _, err := os.Stat("bsn.json"); os.IsNotExist(err) {
 		const bikeShareAPI = "http://api.citybik.es/v2/networks"
@@ -233,6 +244,7 @@ type Location struct {
 	Country   string  `json:"country"`
 	Latitude  float64 `json:"latitude"`
 	Longitude float64 `json:"longitude"`
+	Distance  int     `json:"distance,omitempty"`
 }
 
 func (n *Network) UnmarshalJSON(data []byte) error {
@@ -299,4 +311,9 @@ func GzipFunc(fn http.HandlerFunc) http.HandlerFunc {
 
 func (w gzipResponseWriter) Write(b []byte) (int, error) {
 	return w.Writer.Write(b)
+}
+
+func timeLog(start time.Time, name string) {
+	taken := time.Since(start)
+	log.Printf("%s took %s", name, taken)
 }
