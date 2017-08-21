@@ -3,36 +3,56 @@
 <!-- Please see  github.com//notthegoodorthebad/seagull/ for Licence-->
 <html>
 <head>
-		<link rel="stylesheet" href="https://unpkg.com/leaflet@1.2.0/dist/leaflet.css"
-		integrity="sha512-M2wvCLH6DSRazYeZRIm1JnYyh22purTM+FDB5CsyxtQJYeKq83arPe5wgbNmcFXGqiSH2XR8dT/fJISVA1r/zQ=="
-		crossorigin=""/>
-		<script src="https://unpkg.com/leaflet@1.2.0/dist/leaflet.js"
-		integrity="sha512-lInM/apFSqyy1o6s89K4iQUKg6ppXEgsVxT35HbzUupEVRh2Eu9Wdl4tHj7dZO0s1uvplcYGmt3498TtHq+log=="
-		crossorigin=""></script>
-		<style>
-			
-		</style>
+	<script async defer
+		src="styles.js">
+	</script>
+	<script async defer
+		src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBj_B8fJmNw2_QFQMypsw_9dYXOe5wB13Q&callback=initMap">
+	</script>
+	
+
+	<style>
+	html, body, #map {
+		padding: 0px;
+		margin: 0px;
+		width: 100%;
+		height: 100%;
+		overflow: hidden;
+	}
+    </style>
 </head>
 
-<body>
-		<div id="mapid" style="width: 600px; height: 400px;"></div>
-
+<body >
+		<div id="map"></div>
 <script>
+	var map
+	var Networks =[];
+	function initMap() {
+		var myLatlng = {lat: -25.363, lng: 131.044};
+	  
+		map = new google.maps.Map(document.getElementById('map'), {
+		  zoom: 4,
+		  center: myLatlng,
+		  styles: styles
+		});
+	  
+		var iconBase = 'https://127.0.0.1:8080/bike.svg';
+		var icons = {
+			info: {
+            icon: iconBase + 'bike.svg'
+          }
+		}
+		window.setTimeout(function() {
+			load("/api/network");	
+    	}, 1);
+	  }
 
-	var mymap = L.map('mapid').setView([51.505, -0.09], 13);
-	L.tileLayer('https://api.tiles.mapbox.com/v4/{id}/{z}/{x}/{y}.png?access_token=pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw', {
-		maxZoom: 18,
-		attribution: 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, ' +
-			'<a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, ' +
-			'Imagery © <a href="http://mapbox.com">Mapbox</a>',
-		id: 'mapbox.streets'
-	}).addTo(mymap);
 
 
 	function load(url,lat,lng) {
 		var xhr = new XMLHttpRequest();
 		if ((lat != undefined) && (lng != undefined)) {
-			url = url + "?Lat=" + lat +"&Lng=" + lng
+			url = url + "?Lat=" + lat +"&Lng=" + lng +"&Rng=1000000"
 		}
 		console.log(url)
 		xhr.open('GET', url);
@@ -40,20 +60,29 @@
 				
 		xhr.onload = function(e) {
 		    if (this.status == 200) {
-				console.log(this)
                 console.log(this.response)
-				for (var i=0; i< this.response.length; i++){
-					var marker = L.marker([this.response[i].location.latitude, this.response[i].location.longitude]).addTo(mymap);
-					marker.bindPopup("<b>"+this.response[i].company +"</b><br>"+this.response[i].name+"</b><br>"+this.response[i].location.city).openPopup();
+				if (this.response != null) {
+					Networks = this.response;
+					for (var i=0; i< Networks.length; i++){
+						addmarker(Networks[i].location.latitude, Networks[i].location.longitude, Networks[i].id)
+					}
 				}
 			}
-			console.log(this)
 		}
 		xhr.send();
 	};
 
-	// load("/api/network", 51.505, -0.09);
-	load("/api/network");
+	function addmarker(lat, lng, name) {
+		var marker = new google.maps.Marker({
+			position: {lat: lat, lng: lng},
+			map: map,
+			title: name,
+			icon: {
+				url: 'http://127.0.0.1:8080/bike.png',
+				size: new google.maps.Size(32, 32),
+			}
+		});
+	}
 
 </script>
 </body>
