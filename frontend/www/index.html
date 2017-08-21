@@ -1,1 +1,59 @@
-hello
+<!doctype html>
+<!-- Copyright seagull Authors All rights reserved -->
+<!-- Please see  github.com//notthegoodorthebad/seagull/ for Licence-->
+<html>
+<head>
+		<link rel="stylesheet" href="https://unpkg.com/leaflet@1.2.0/dist/leaflet.css"
+		integrity="sha512-M2wvCLH6DSRazYeZRIm1JnYyh22purTM+FDB5CsyxtQJYeKq83arPe5wgbNmcFXGqiSH2XR8dT/fJISVA1r/zQ=="
+		crossorigin=""/>
+		<script src="https://unpkg.com/leaflet@1.2.0/dist/leaflet.js"
+		integrity="sha512-lInM/apFSqyy1o6s89K4iQUKg6ppXEgsVxT35HbzUupEVRh2Eu9Wdl4tHj7dZO0s1uvplcYGmt3498TtHq+log=="
+		crossorigin=""></script>
+		<style>
+			
+		</style>
+</head>
+
+<body>
+		<div id="mapid" style="width: 600px; height: 400px;"></div>
+
+<script>
+
+	var mymap = L.map('mapid').setView([51.505, -0.09], 13);
+	L.tileLayer('https://api.tiles.mapbox.com/v4/{id}/{z}/{x}/{y}.png?access_token=pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw', {
+		maxZoom: 18,
+		attribution: 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, ' +
+			'<a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, ' +
+			'Imagery © <a href="http://mapbox.com">Mapbox</a>',
+		id: 'mapbox.streets'
+	}).addTo(mymap);
+
+
+	function load(url,lat,lng) {
+		var xhr = new XMLHttpRequest();
+		if ((lat != undefined) && (lng != undefined)) {
+			url = url + "?Lat=" + lat +"&Lng=" + lng
+		}
+		console.log(url)
+		xhr.open('GET', url);
+		xhr.responseType = 'json';
+				
+		xhr.onload = function(e) {
+		    if (this.status == 200) {
+				console.log(this)
+                console.log(this.response)
+				for (var i=0; i< this.response.length; i++){
+					var marker = L.marker([this.response[i].location.latitude, this.response[i].location.longitude]).addTo(mymap);
+					marker.bindPopup("<b>"+this.response[i].company +"</b><br>"+this.response[i].name+"</b><br>"+this.response[i].location.city).openPopup();
+				}
+			}
+			console.log(this)
+		}
+		xhr.send();
+	};
+
+	// load("/api/network", 51.505, -0.09);
+	load("/api/network");
+
+</script>
+</body>

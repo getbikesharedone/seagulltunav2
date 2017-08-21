@@ -8,6 +8,7 @@ import (
 	"math"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/kataras/iris"
@@ -16,7 +17,10 @@ import (
 
 // in lou of database for now
 var bsn bikeShareNetwork
+
+var netmapMu *sync.RWMutex
 var netmap = make(map[string]Network)
+var stationmap = make(map[string]Station)
 
 func main() {
 	log.Println("starting seagull")
@@ -30,13 +34,57 @@ func main() {
 	// replace with database
 	for _, v := range bsn.Networks {
 		netmap[v.ID] = v
+		for _, vv := range v.Stations {
+			stationmap[vv.ID] = vv
+		}
 	}
 
 	srv := iris.New()
 	srv.StaticWeb("/", "../frontend/www")
 	srv.Get("/api/network/{id:string}", getDetail)
 	srv.Get("/api/network", getNetworkList)
-	srv.Run(iris.Addr(":8080"))
+	srv.Get("/api/station/{id:string}", getStation)
+	srv.Post("/api/station/{id:string}", updateStation)
+	srv.Post("/api/station/{id:string}/tag", tagStation)
+	srv.Post("/api/station/{id:string}/review", reviewStation)
+	if err := srv.Run(iris.Addr(":8080")); err != nil {
+		log.Fatalf("failed to start http server: %v\n", err)
+	}
+}
+
+func getStation(ctx context.Context) {
+	id := ctx.Params().Get("id")
+	if id == "" {
+		ctx.NotFound()
+	}
+	station, ok := stationmap[id]
+	if !ok {
+		ctx.NotFound()
+	}
+	ctx.Gzip(true)
+	ctx.JSON(station)
+
+}
+
+func updateStation(ctx context.Context) {
+	id := ctx.Params().Get("id")
+	if id == "" {
+		ctx.Err()
+	}
+}
+
+func tagStation(ctx context.Context) {
+	id := ctx.Params().Get("id")
+	if id == "" {
+		ctx.Err()
+	}
+}
+
+func reviewStation(ctx context.Context) {
+	id := ctx.Params().Get("id")
+	if id == "" {
+		ctx.Err()
+	}
 }
 
 func getDetail(ctx context.Context) {
@@ -53,73 +101,76 @@ func getDetail(ctx context.Context) {
 	ctx.JSON(net)
 }
 
-type Where struct {
+type NetworkQuery struct {
 	Lat, Lng float64
 	Rng      float64
 }
 
 func getNetworkList(ctx context.Context) {
-	at := Where{}
-	err := ctx.ReadForm(&at)
+	position := NetworkQuery{}
+	err := ctx.ReadForm(&position)
 	if err != nil {
 		log.Println(err)
 	}
 	type Shortnet struct {
-		ID       string `json:"id"`
-		Name     string `json:"name"`
-		Location `json:"location"`
+		Company  []string `json:"company,omitempty"`
+		ID       string   `json:"id,omitempty"`
+		Name     string   `json:"name,omitempty"`
+		Location `json:"location,omitempty"`
 	}
 
-	type Response struct {
-		Networks []Shortnet `json:"networks"`
-	}
 	ctx.Gzip(true)
 
-	if at.Lat == 0 || at.Lng == 0 {
-		var short Response
+	if position.Lat == 0 || position.Lng == 0 {
+		var short []Shortnet
 		for _, v := range bsn.Networks {
 			s := Shortnet{
+				Company:  v.Company,
 				ID:       v.ID,
 				Name:     v.Name,
 				Location: v.Location,
 			}
-			short.Networks = append(short.Networks, s)
+			short = append(short, s)
+			// }
+
 		}
 		ctx.JSON(short)
+		return
 	}
-	if at.Rng == 0 {
-		at.Rng = 160000 // 160 km, 100 Miles
+	if position.Rng == 0 {
+		position.Rng = 160000 // 160 km, 100 Miles
 	}
 	// compute diatnce
-	var localised Response
+	var localised []Shortnet
 	for _, v := range bsn.Networks {
-		distance := v.Location.howfar(at)
-		if distance < at.Rng {
+		net := v
+		if net.Location.nearby(position) {
 			s := Shortnet{
-				ID:       v.ID,
-				Name:     v.Name,
-				Location: v.Location,
+				Company:  v.Company,
+				ID:       net.ID,
+				Name:     net.Name,
+				Location: net.Location,
 			}
-			s.Location.Distance = int(distance)
-			localised.Networks = append(localised.Networks, s)
+			localised = append(localised, s)
 		}
 	}
 	ctx.JSON(localised)
 }
 
-func (l Location) howfar(at Where) float64 {
+func (l *Location) nearby(position NetworkQuery) bool {
 	R := 6371e3 // radius
 
-	φ1 := (math.Pi * at.Lat) / 180
-	φ2 := (math.Pi * at.Lng) / 180
+	φ1 := (math.Pi * position.Lat) / 180
+	φ2 := (math.Pi * position.Lng) / 180
 
-	Δφ := (l.Latitude - at.Lat) * math.Pi / 180
-	Δλ := (l.Longitude - at.Lng) * math.Pi / 180
+	Δφ := (l.Latitude - position.Lat) * math.Pi / 180
+	Δλ := (l.Longitude - position.Lng) * math.Pi / 180
 
 	a := math.Sin(Δφ/2)*math.Sin(Δφ/2) +
 		math.Cos(φ1)*math.Cos(φ2)*
 			math.Sin(Δλ/2)*math.Sin(Δλ/2)
-	return R * 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
+	l.Distance = R * 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
+	return l.Distance < position.Rng
 }
 
 func getSeedData() (bikeShareNetwork, error) {
@@ -212,6 +263,16 @@ type Station struct {
 	Longitude  float64   `json:"longitude"`
 	Name       string    ` json:"name"`
 	Timestamp  time.Time `json:"timestamp"` // look up local offset at location
+	Reviews    []Review  `json:"reviews,omitempty"`
+	Closed     bool      `json:"closed,omitempty"`
+}
+
+type Review struct {
+	Timestamp time.Time `json:"timestamp"`
+	User      string    `json:"user"`
+	Title     string    `json:"title"`
+	Body      string    `json:"body"`
+	Rating    int       `json:"rating"`
 }
 
 type Location struct {
@@ -219,7 +280,10 @@ type Location struct {
 	Country   string  `json:"country"`
 	Latitude  float64 `json:"latitude"`
 	Longitude float64 `json:"longitude"`
-	Distance  int     `json:"distance,omitempty"`
+	Distance  float64 `json:"distance,omitempty"`
+	CenterLat float64 `json:"centerlat,omitempty"`
+	CenterLng float64 `json:"centerlng,omitempty"`
+	Scale     int     `json:"scale,omitempty"`
 }
 
 func (n *Network) UnmarshalJSON(data []byte) error {
