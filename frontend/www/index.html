@@ -27,6 +27,7 @@
 <script>
 	var map
 	var Networks =[];
+	var infoOpen
 	function initMap() {
 		var myLatlng = {lat: -25.363, lng: 131.044};
 	  
@@ -64,7 +65,7 @@
 				if (this.response != null) {
 					Networks = this.response;
 					for (var i=0; i< Networks.length; i++){
-						addmarker(Networks[i].location.latitude, Networks[i].location.longitude, Networks[i].id)
+						addNetworkMarker(Networks[i].location.latitude, Networks[i].location.longitude, Networks[i].id)
 					}
 				}
 			}
@@ -72,9 +73,30 @@
 		xhr.send();
 	};
 
-	function addmarker(lat, lng, name) {
+	function loadStations(id) {
+		var xhr = new XMLHttpRequest();
+		var url = "/api/network/" + id
+		console.log(url)
+		xhr.open('GET', url);
+		xhr.responseType = 'json';
+				
+		xhr.onload = function(e) {
+		    if (this.status == 200) {
+                console.log(this.response)
+				if (this.response != null) {
+					detail = this.response;
+					for (var i=0; i< detail.stations.length; i++){
+						addStationMarker(detail.stations[i].latitude, detail.stations[i].longitude, detail.stations[i])
+					}
+				}
+			}
+		}
+		xhr.send();
+	};
+
+	function addNetworkMarker(lat, lng, name) {
 		var marker = new google.maps.Marker({
-			position: {lat: lat, lng: lng},
+			position: {lat: lat, lng: lng}, 
 			map: map,
 			title: name,
 			icon: {
@@ -82,6 +104,51 @@
 				size: new google.maps.Size(32, 32),
 			}
 		});
+		marker.addListener('click', function() {
+          // 3 seconds after the center of the map has changed, pan back to the
+		window.setTimeout(function() {
+			loadStations(marker.title);	
+			// console.log(marker.title)
+		}, 1);
+		
+          window.setTimeout(function() {
+			map.setZoom(15);
+            map.panTo(marker.getPosition());
+          }, 300);
+		});
+
+	}
+
+	function addStationMarker(lat, lng, station) {
+		var marker = new google.maps.Marker({
+			position: {lat: lat, lng: lng}, 
+			map: map,
+			title: station.name,
+			icon: {
+				url: 'http://127.0.0.1:8080/helmet.png',
+				size: new google.maps.Size(32, 32),
+				origin: new google.maps.Point(0, 0),
+				anchor: new google.maps.Point(16, 16)
+			}
+		});
+		var infowindow = new google.maps.InfoWindow({
+			content: "Free: "+ station.free_bikes.toString()
+		});
+		marker.addListener('click', function() {
+			if (typeof infowindow)
+			infowindow.open(map,marker)
+		})
+		// marker.addListener('click', function() {
+        //   // 3 seconds after the center of the map has changed, pan back to the
+		// window.setTimeout(function() {
+		// 	load("/api/network/" + marker.title);	
+		// 	// console.log(marker.title)
+		// }, 1);
+		
+        //   window.setTimeout(function() {
+        //     map.panTo(marker.getPosition());
+        //   }, 3000);
+        // });
 	}
 
 </script>
