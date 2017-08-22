@@ -113,10 +113,11 @@ func getNetworkList(ctx context.Context) {
 		log.Println(err)
 	}
 	type Shortnet struct {
-		Company  []string `json:"company,omitempty"`
-		ID       string   `json:"id,omitempty"`
-		Name     string   `json:"name,omitempty"`
-		Location `json:"location,omitempty"`
+		Company   []string `json:"company,omitempty"`
+		ID        string   `json:"id,omitempty"`
+		Name      string   `json:"name,omitempty"`
+		Location  `json:"location,omitempty"`
+		MapWindow MapView `json:"mapwindow,omitempty"`
 	}
 
 	ctx.Gzip(true)
@@ -125,10 +126,11 @@ func getNetworkList(ctx context.Context) {
 		var short []Shortnet
 		for _, v := range bsn.Networks {
 			s := Shortnet{
-				Company:  v.Company,
-				ID:       v.ID,
-				Name:     v.Name,
-				Location: v.Location,
+				Company:   v.Company,
+				ID:        v.ID,
+				Name:      v.Name,
+				Location:  v.Location,
+				MapWindow: v.MapWindow,
 			}
 			short = append(short, s)
 			// }
@@ -146,10 +148,11 @@ func getNetworkList(ctx context.Context) {
 		net := v
 		if net.Location.nearby(position) {
 			s := Shortnet{
-				Company:  v.Company,
-				ID:       net.ID,
-				Name:     net.Name,
-				Location: net.Location,
+				Company:   v.Company,
+				ID:        net.ID,
+				Name:      net.Name,
+				Location:  net.Location,
+				MapWindow: net.MapWindow,
 			}
 			localised = append(localised, s)
 		}
@@ -171,6 +174,41 @@ func (l *Location) nearby(position NetworkQuery) bool {
 			math.Sin(Δλ/2)*math.Sin(Δλ/2)
 	l.Distance = R * 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
 	return l.Distance < position.Rng
+}
+
+func (m *MapView) extents(ss []Station) {
+	// Meters per pixel = 156543.03392 * Math.cos(latLng.lat() * Math.PI / 180) / Math.pow(2, zoom)
+	if len(ss) == 0 {
+		return
+	}
+	latMin := 90.0
+	latMax := -90.0
+	lngMin := 180.0
+	lngMax := -180.0
+	for _, v := range ss {
+		if v.Latitude < latMin {
+			latMin = v.Latitude
+		}
+		if v.Latitude > latMax {
+			latMax = v.Latitude
+		}
+		if v.Longitude < lngMin {
+			lngMin = v.Longitude
+		}
+		if v.Longitude > lngMax {
+			lngMax = v.Longitude
+		}
+	}
+	latCenter := ((latMax - latMin) / 2) + latMin
+	lngCenter := ((lngMax - lngMin) / 2) + lngMin
+
+	m.TopLeft.Lat = latMin
+	m.TopLeft.Lng = lngMax
+	m.BotomRight.Lat = latMax
+	m.BotomRight.Lng = lngMin
+	m.Center.Lat = latCenter
+	m.Center.Lng = lngCenter
+
 }
 
 func getSeedData() (bikeShareNetwork, error) {
@@ -223,7 +261,7 @@ func getSeedData() (bikeShareNetwork, error) {
 	}
 
 	var bsn bikeShareNetwork
-
+	// get data from file
 	in, err := os.Open("bsn.json")
 	if err != nil {
 		return bsn, err
@@ -233,7 +271,12 @@ func getSeedData() (bikeShareNetwork, error) {
 	if err := dec.Decode(&bsn); err != nil {
 		return bsn, err
 	}
-	// get data from file
+
+	for k, v := range bsn.Networks {
+		m := v.MapWindow
+		m.extents(v.Stations)
+		bsn.Networks[k].MapWindow = m
+	}
 
 	return bsn, nil
 
@@ -244,11 +287,23 @@ type bikeShareNetwork struct {
 }
 
 type Network struct {
-	Company  []string `json:"company"`
-	ID       string   `json:"id"`
-	Location `json:"location"`
-	Name     string    `json:"name"`
-	Stations []Station `json:"stations,omitempty"`
+	Company   []string `json:"company"`
+	ID        string   `json:"id"`
+	Location  `json:"location"`
+	Name      string    `json:"name"`
+	Stations  []Station `json:"stations,omitempty"`
+	MapWindow MapView   `json:"mapwindow,omitempty"`
+}
+
+type MapView struct {
+	TopLeft    Coordinate `json:"topleft,omitempty"`
+	BotomRight Coordinate `json:"bottomright,omitempty"`
+	Center     Coordinate `json:"center,omitempty"`
+}
+
+type Coordinate struct {
+	Lat float64 `json:"lat,omitempty"`
+	Lng float64 `json:"lng,omitempty"`
 }
 
 type networkDetail struct {
