@@ -65,7 +65,7 @@
 				if (this.response != null) {
 					Networks = this.response;
 					for (var i=0; i< Networks.length; i++){
-						addNetworkMarker(Networks[i].location.latitude, Networks[i].location.longitude, Networks[i].id)
+						addNetworkMarker(Networks[i])
 					}
 				}
 			}
@@ -94,15 +94,16 @@
 		xhr.send();
 	};
 
-	function addNetworkMarker(lat, lng, name) {
+	function addNetworkMarker(network) {
 		var marker = new google.maps.Marker({
-			position: {lat: lat, lng: lng}, 
+			position: {lat: network.location.latitude, lng: network.location.longitude}, 
 			map: map,
-			title: name,
+			title: network.id,
 			icon: {
 				url: 'http://127.0.0.1:8080/bike.png',
 				size: new google.maps.Size(32, 32),
-			}
+			},
+			center: {lat:network.mapwindow.center.lat, lng: network.mapwindow.center.lng}
 		});
 		marker.addListener('click', function() {
           // 3 seconds after the center of the map has changed, pan back to the
@@ -112,8 +113,9 @@
 		}, 1);
 		
           window.setTimeout(function() {
-			map.setZoom(15);
-            map.panTo(marker.getPosition());
+			map.setZoom(13);
+			// map.panTo(marker.getPosition());
+			map.panTo(marker.center);
           }, 300);
 		});
 
