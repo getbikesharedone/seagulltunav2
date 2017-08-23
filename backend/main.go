@@ -39,17 +39,23 @@ func main() {
 		}
 	}
 
-	srv := iris.New()
-	srv.StaticWeb("/", "../frontend/www")
-	srv.Get("/api/network/{id:string}", getDetail)
-	srv.Get("/api/network", getNetworkList)
-	srv.Get("/api/station/{id:string}", getStation)
-	srv.Post("/api/station/{id:string}", updateStation)
-	srv.Post("/api/station/{id:string}/tag", tagStation)
-	srv.Post("/api/station/{id:string}/review", reviewStation)
-	if err := srv.Run(iris.Addr(":8080")); err != nil {
+	srv := newSrv()
+
+	if err := srv.Run(iris.Addr(":8080"), iris.WithoutVersionChecker); err != nil {
 		log.Fatalf("failed to start http server: %v\n", err)
 	}
+}
+
+func newSrv() *iris.Application {
+	s := iris.New()
+	s.StaticWeb("/", "../frontend/www")
+	s.Get("/api/network/{id:string}", getDetail)
+	s.Get("/api/network", getNetworkList)
+	s.Get("/api/station/{id:string}", getStation)
+	s.Post("/api/station/{id:string}", updateStation)
+	s.Post("/api/station/{id:string}/tag", tagStation)
+	s.Post("/api/station/{id:string}/review", reviewStation)
+	return s
 }
 
 func getStation(ctx context.Context) {
@@ -91,11 +97,13 @@ func getDetail(ctx context.Context) {
 	id := ctx.Params().Get("id")
 	if id == "" {
 		ctx.NotFound()
+		return
 	}
 	net, ok := netmap[id]
 	if !ok {
 		log.Printf("network %v does not exist", id)
 		ctx.NotFound()
+		return
 	}
 	ctx.Gzip(true)
 	ctx.JSON(net)
@@ -224,8 +232,7 @@ func getSeedData() (bikeShareNetwork, error) {
 		}
 		defer resp.Body.Close()
 
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&bsn); err != nil {
+		if err := json.NewDecoder(resp.Body).Decode(&bsn); err != nil {
 			return bsn, err
 		}
 		networks := len(bsn.Networks)
@@ -238,8 +245,7 @@ func getSeedData() (bikeShareNetwork, error) {
 				break
 			}
 			defer resp.Body.Close()
-			dec := json.NewDecoder(resp.Body)
-			if err := dec.Decode(&detail); err != nil {
+			if err := json.NewDecoder(resp.Body).Decode(&detail); err != nil {
 				log.Printf("error decoding detail json for %s: %v", v.ID, err)
 				break
 			}
@@ -252,9 +258,7 @@ func getSeedData() (bikeShareNetwork, error) {
 		}
 		defer out.Close()
 
-		enc := json.NewEncoder(out)
-		err = enc.Encode(bsn)
-		if err != nil {
+		if err := json.NewEncoder(out).Encode(bsn); err != nil {
 			log.Println(err)
 		}
 
@@ -267,8 +271,7 @@ func getSeedData() (bikeShareNetwork, error) {
 		return bsn, err
 	}
 
-	dec := json.NewDecoder(in)
-	if err := dec.Decode(&bsn); err != nil {
+	if err := json.NewDecoder(in).Decode(&bsn); err != nil {
 		return bsn, err
 	}
 
@@ -371,7 +374,7 @@ func (n *Network) UnmarshalJSON(data []byte) error {
 					if ok {
 						n.Company = append(n.Company, c)
 					} else {
-						log.Println("failed conversion to string")
+						log.Println("failed conversion to string for: ", aux.ServerNetworks.ID)
 					}
 				}
 			}
