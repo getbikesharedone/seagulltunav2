@@ -96,6 +96,7 @@ func reviewStation(ctx context.Context) {
 func getDetail(ctx context.Context) {
 	id := ctx.Params().Get("id")
 	if id == "" {
+		log.Println("\n\n id is nil")
 		ctx.NotFound()
 		return
 	}
@@ -109,17 +110,8 @@ func getDetail(ctx context.Context) {
 	ctx.JSON(net)
 }
 
-type NetworkQuery struct {
-	Lat, Lng float64
-	Rng      float64
-}
-
 func getNetworkList(ctx context.Context) {
-	position := NetworkQuery{}
-	err := ctx.ReadForm(&position)
-	if err != nil {
-		log.Println(err)
-	}
+
 	type Shortnet struct {
 		Company   []string `json:"company,omitempty"`
 		ID        string   `json:"id,omitempty"`
@@ -130,63 +122,42 @@ func getNetworkList(ctx context.Context) {
 
 	ctx.Gzip(true)
 
-	if position.Lat == 0 || position.Lng == 0 {
-		var short []Shortnet
-		for _, v := range bsn.Networks {
-			s := Shortnet{
-				Company:   v.Company,
-				ID:        v.ID,
-				Name:      v.Name,
-				Location:  v.Location,
-				MapWindow: v.MapWindow,
-			}
-			short = append(short, s)
-			// }
-
-		}
-		ctx.JSON(short)
-		return
-	}
-	if position.Rng == 0 {
-		position.Rng = 160000 // 160 km, 100 Miles
-	}
-	// compute diatnce
-	var localised []Shortnet
+	var short []Shortnet
 	for _, v := range bsn.Networks {
-		net := v
-		if net.Location.nearby(position) {
-			s := Shortnet{
-				Company:   v.Company,
-				ID:        net.ID,
-				Name:      net.Name,
-				Location:  net.Location,
-				MapWindow: net.MapWindow,
-			}
-			localised = append(localised, s)
+		s := Shortnet{
+			Company:   v.Company,
+			ID:        v.ID,
+			Name:      v.Name,
+			Location:  v.Location,
+			MapWindow: v.MapWindow,
 		}
+		short = append(short, s)
 	}
-	ctx.JSON(localised)
+	ctx.JSON(short)
+	return
+
 }
 
-func (l *Location) nearby(position NetworkQuery) bool {
+func distance(lat1, lng1, lat2, lng2 float64) float64 {
 	R := 6371e3 // radius
 
-	φ1 := (math.Pi * position.Lat) / 180
-	φ2 := (math.Pi * position.Lng) / 180
+	φ1 := (math.Pi * lat1) / 180
+	φ2 := (math.Pi * lat2) / 180
 
-	Δφ := (l.Latitude - position.Lat) * math.Pi / 180
-	Δλ := (l.Longitude - position.Lng) * math.Pi / 180
+	Δφ := (lat2 - lat1) * math.Pi / 180
+	Δλ := (lng2 - lng1) * math.Pi / 180
 
 	a := math.Sin(Δφ/2)*math.Sin(Δφ/2) +
 		math.Cos(φ1)*math.Cos(φ2)*
 			math.Sin(Δλ/2)*math.Sin(Δλ/2)
-	l.Distance = R * 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
-	return l.Distance < position.Rng
+	meters := R * 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
+
+	return meters
 }
 
 func (m *MapView) extents(ss []Station) {
 	// Meters per pixel = 156543.03392 * Math.cos(latLng.lat() * Math.PI / 180) / Math.pow(2, zoom)
-	if len(ss) == 0 {
+	if len(ss) < 2 {
 		return
 	}
 	latMin := 90.0
@@ -210,10 +181,9 @@ func (m *MapView) extents(ss []Station) {
 	latCenter := ((latMax - latMin) / 2) + latMin
 	lngCenter := ((lngMax - lngMin) / 2) + lngMin
 
-	m.TopLeft.Lat = latMin
-	m.TopLeft.Lng = lngMax
-	m.BotomRight.Lat = latMax
-	m.BotomRight.Lng = lngMin
+	m.Vspan = distance(latMin, lngCenter, latMax, lngCenter)
+	m.Hspan = distance(latCenter, lngMin, latCenter, lngMax)
+
 	m.Center.Lat = latCenter
 	m.Center.Lng = lngCenter
 
@@ -299,9 +269,9 @@ type Network struct {
 }
 
 type MapView struct {
-	TopLeft    Coordinate `json:"topleft,omitempty"`
-	BotomRight Coordinate `json:"bottomright,omitempty"`
-	Center     Coordinate `json:"center,omitempty"`
+	Vspan  float64    `json:"vspan,omitempty"`
+	Hspan  float64    `json:"hspan,omitempty"`
+	Center Coordinate `json:"center,omitempty"`
 }
 
 type Coordinate struct {

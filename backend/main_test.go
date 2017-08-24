@@ -56,27 +56,6 @@ func TestGetNetworkList(t *testing.T) {
 	}
 }
 
-// func TestGetNetworkListWithQuery(t *testing.T) {
-// 	testsrv := newSrv()
-
-// 	e := httptest.New(t, testsrv)
-// 	// lat, lng, rng := 45.770958, 3.073871, 10000000.0
-// 	// query := fmt.Sprintf("/api/network?Lat=%f&Lng=%f&Rng=%6.1f", lat, lng, rng)
-// 	// fmt.Println(query)
-// 	// check response status
-// 	rawResponse := e.GET("/api/network?Lat=45.770958&Lng=3.073871").Expect().Status(httptest.StatusOK).ContentType("application/json").Raw()
-// 	// check if response is valid json
-// 	// var networks []Network
-// 	// if err := json.Unmarshal([]byte(rawResponse), &networks); err != nil {
-// 	log.Println(rawResponse)
-// 	// 	t.Errorf("expected to be decode into bsn network: %v", err)
-// 	// }
-// 	// check that length is the same as origional
-// 	// if len(networks) != len(bsn.Networks) {
-// 	// 	t.Errorf("expected array length of response to be %d but got %d", len(bsn.Networks), len(networks))
-// 	// }
-// }
-
 func TestGetNetworkDetail(t *testing.T) {
 	testsrv := newSrv()
 
