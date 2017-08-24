@@ -1,6 +1,6 @@
 <!doctype html>
 <!-- Copyright seagull Authors All rights reserved -->
-<!-- Please see  github.com//notthegoodorthebad/seagull/ for Licence-->
+<!-- Please see  github.com/notthegoodorthebad/seagull/ for Licence-->
 <html>
 <head>
 	<script async defer
@@ -23,7 +23,7 @@
 </head>
 
 <body >
-		<div id="map"></div>
+			<div id="map"></div>	
 <script>
 	var map
 	var Networks =[];
@@ -103,7 +103,8 @@
 				url: 'http://127.0.0.1:8080/bike.png',
 				size: new google.maps.Size(32, 32),
 			},
-			center: {lat:network.mapwindow.center.lat, lng: network.mapwindow.center.lng}
+			center: {lat:network.mapwindow.center.lat, lng: network.mapwindow.center.lng},
+			network:network
 		});
 		marker.addListener('click', function() {
           // 3 seconds after the center of the map has changed, pan back to the
@@ -113,8 +114,23 @@
 		}, 1);
 		
           window.setTimeout(function() {
-			map.setZoom(13);
-			// map.panTo(marker.getPosition());
+			// get size of map
+			var hpixelsOfMap = document.getElementById("map").offsetWidth
+			var vpixelsOfMap = document.getElementById("map").offsetHeight
+			var zoom = 1 
+			var view = Math.max(network.mapwindow.hspan/hpixelsOfMap, network.mapwindow.vspan/vpixelsOfMap)
+			// iterate until we find a zoom level the stations do not fit
+			while(view < (156543.03392 * Math.cos(network.mapwindow.center.lat * Math.PI / 180) / Math.pow(2, zoom))){
+				console.log(zoom)
+				zoom++
+				// dont know if this will work, but put here incase there is only one station
+				if (zoom > 18) {
+					break
+				}
+			}
+
+			// set zoom one level up
+			map.setZoom(zoom-1);
 			map.panTo(marker.center);
           }, 300);
 		});
@@ -131,7 +147,8 @@
 				size: new google.maps.Size(32, 32),
 				origin: new google.maps.Point(0, 0),
 				anchor: new google.maps.Point(16, 16)
-			}
+			},
+			station:station
 		});
 		var infowindow = new google.maps.InfoWindow({
 			content: "Free: "+ station.free_bikes.toString()
@@ -139,18 +156,9 @@
 		marker.addListener('click', function() {
 			if (typeof infowindow)
 			infowindow.open(map,marker)
+			// openStationEdit()
+			console.log(marker.station)
 		})
-		// marker.addListener('click', function() {
-        //   // 3 seconds after the center of the map has changed, pan back to the
-		// window.setTimeout(function() {
-		// 	load("/api/network/" + marker.title);	
-		// 	// console.log(marker.title)
-		// }, 1);
-		
-        //   window.setTimeout(function() {
-        //     map.panTo(marker.getPosition());
-        //   }, 3000);
-        // });
 	}
 
 </script>
