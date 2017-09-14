@@ -1,35 +1,26 @@
 package main
 
 import (
-	// "encoding/json"
 	"encoding/json"
 	"fmt"
 	"log"
 	"os"
+	"sync"
 	"testing"
 
+	"github.com/jmoiron/sqlx"
 	"github.com/kataras/iris/httptest"
-	// "log"
-	// "os"
-	// "testing"
-	// "github.com/kataras/iris/httptest"
 )
 
 func TestMain(m *testing.M) {
 	fmt.Println("start init")
 	var err error
-	bsn, err = getSeedData()
-	if err != nil {
-		log.Fatal(err)
+	if db, err = sqlx.Open("sqlite3", "bsn.db"); err != nil {
+		log.Fatalf("database error: ", err)
 	}
 
-	for _, v := range bsn.Networks {
-		netmap[v.ID] = v
-		for _, vv := range v.Stations {
-			stationmap[vv.ID] = vv
-		}
-	}
 	exitStatus := m.Run()
+	db.Close()
 	os.Exit(exitStatus)
 }
 
@@ -55,10 +46,6 @@ func TestGetNetworkList(t *testing.T) {
 	if err := json.Unmarshal([]byte(rawResponse), &networks); err != nil {
 		t.Errorf("expected to be decode into bsn network: %v", err)
 	}
-	// check that length is the same as origional
-	if len(networks) != len(bsn.Networks) {
-		t.Errorf("expected array length of response to be %d but got %d", len(bsn.Networks), len(networks))
-	}
 }
 
 func TestGetNetworkDetail(t *testing.T) {
@@ -72,11 +59,11 @@ func TestGetNetworkDetail(t *testing.T) {
 	}
 	tests := []Test{{id: "garbage", status: httptest.StatusNotFound, content: ""}}
 
-	for _, v := range bsn.Networks {
-		// seems to be a nil in the data set
-		if v.ID != "" {
-			tests = append(tests, Test{v.ID, httptest.StatusOK, "application/json"})
-		}
+	var Networks []Network
+	db.Select(&Networks, "SELECT ID FROM networks")
+
+	for _, v := range Networks {
+		tests = append(tests, Test{v.ID, httptest.StatusOK, "application/json"})
 	}
 
 	for k, test := range tests {
@@ -88,14 +75,56 @@ func TestGetNetworkDetail(t *testing.T) {
 			var network Network
 			if err := json.Unmarshal([]byte(rawResponse), &network); err != nil {
 				fmt.Println(k, test)
-				t.Errorf("Failed on %d: %s expected to be decode into Network: %v\n ", k, test.id, err)
+				t.Errorf("Failed on %d: %s expected to be decode into Network with error: %v\n ", k, test.id, err)
 			}
 
 			if network.ID != test.id {
-				t.Errorf("expected array length of response to be %s but got %s", network.ID, test.id)
+				t.Errorf("expected response to be %s but got %s", network.ID, test.id)
 			}
 		}
 
 	}
 
+}
+
+func TestGetNetworkDetailConcurrent(t *testing.T) {
+	testsrv := newSrv()
+
+	e := httptest.New(t, testsrv)
+	type Test struct {
+		id      string
+		status  int
+		content string
+	}
+	tests := []Test{{id: "garbage", status: httptest.StatusNotFound, content: ""}}
+
+	var Networks []Network
+	db.Select(&Networks, "SELECT ID FROM networks")
+
+	for _, v := range Networks {
+		tests = append(tests, Test{v.ID, httptest.StatusOK, "application/json"})
+	}
+	var wg sync.WaitGroup
+	for k, testcase := range tests {
+		// throw all the requests at once at server
+		wg.Add(1)
+		go func(tc Test, tn int) {
+
+			rawResponse := e.GET("/api/network/" + tc.id).Expect().Status(tc.status).ContentType(tc.content).Body().Raw()
+			if tc.status == httptest.StatusOK {
+				var network Network
+				if err := json.Unmarshal([]byte(rawResponse), &network); err != nil {
+					fmt.Println(k, tc)
+					t.Errorf("Failed on %d: %s expected to be decode into Network with error: %v\n ", tn, tc.id, err)
+				}
+
+				if network.ID != tc.id {
+					t.Errorf("expected response to be %s but got %s", network.ID, tc.id)
+				}
+			}
+			wg.Done()
+		}(testcase, k)
+
+	}
+	wg.Wait()
 }

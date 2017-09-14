@@ -4,19 +4,24 @@ import "time"
 
 type Review struct {
 	UID        int       `db:"UID" json:"id"`
-	StationUID int       `db:"StationUID" json:"stationuid"`
+	StationUID string    `db:"StationUID" json:"stationuid"`
 	TimeStamp  time.Time `db:"TimeStamp" json:"time"`
 	Body       string    `db:"Body" json:"body"`
 	Rating     int       `db:"Rating" json:"rating"`
 }
 
 type Station struct {
-	UID     string   `db:"UID" json:"-"`
-	ID      string   `db:"ID" json:"id"`
-	Name    string   `db:"Name" json:"name"`
-	Lat     float64  `db:"Latitude" json:"lat"`
-	Lng     float64  `db:"Longitude" json:"lng"`
-	Reviews []Review `db:"-" json:"reviews,omitempty"`
+	UID        string    `db:"UID" json:"-"`
+	ID         string    `db:"ID" json:"id"`
+	NetworkUID string    `db:"NetworkUID" json:"_"`
+	Name       string    `db:"Name" json:"name"`
+	EmptySlots int       `db:"EmptySlots" json:"empty"`
+	FreeBikes  int       `db:"FreeBikes" json:"free"`
+	Safe       bool      `db:"Safe" json:"safe"`
+	TimeStamp  time.Time `db:"TimeStamp" json:"time"`
+	Lat        float64   `db:"Latitude" json:"lat"`
+	Lng        float64   `db:"Longitude" json:"lng"`
+	Reviews    []Review  `db:"-" json:"reviews,omitempty"`
 }
 
 type Network struct {

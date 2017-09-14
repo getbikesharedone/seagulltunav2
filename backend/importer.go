@@ -60,7 +60,7 @@ type APINetwork struct {
 			Latitude  float64   `json:"latitude"`
 			Longitude float64   `json:"longitude"`
 			Name      string    `json:"name"`
-			Timestamp time.Time `json:"timestamp"`
+			TimeStamp time.Time `json:"timestamp"`
 		} `json:"stations"`
 	} `json:"network"`
 }
@@ -94,19 +94,18 @@ CREATE TABLE stations (
 	EmptySlots  INTEGER,
 	FreeBikes   INTEGER,
 	Extra       INTEGER,
+	Safe		INTEGER DEFAULT 1,
 	Latitude    DOUBLE,
 	Longitude   DOUBLE,
-	Timestamp   DATETIME
+	TimeStamp   DATETIME
 );
 DROP TABLE IF EXISTS reviews;
 CREATE TABLE reviews (
-	uid         INTEGER PRIMARY KEY,
-	stationid	VARCHAR(80)  DEFAULT '',
-	user        VARCHAR(80)  DEFAULT '',
-    title       VARCHAR(80)  DEFAULT '',
-	body        VARCHAR(250) DEFAULT '',
-	rating      VARCHAR(250) DEFAULT '',
-	timestamp   DATETIME
+	UID         INTEGER PRIMARY KEY,
+	StationUID	VARCHAR(80)  DEFAULT '',
+	Body        VARCHAR(250) DEFAULT '',
+	Rating      INTEGER,
+	TimeStamp   DATETIME
 );
 `
 
@@ -238,7 +237,7 @@ func buildDatabase() error {
 		}
 
 		for _, station := range network.Stations {
-			tx.MustExec("INSERT INTO stations (ID,NetworkUID,Name,EmptySlots,FreeBikes,Latitude,Longitude,Timestamp) VALUES ($1, $2,$3,$4,$5,$6,$7,$8)",
+			tx.MustExec("INSERT INTO stations (ID,NetworkUID,Name,EmptySlots,FreeBikes,Latitude,Longitude,TimeStamp) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
 				station.ID,
 				NetworkUID,
 				station.Name,
@@ -246,7 +245,7 @@ func buildDatabase() error {
 				station.FreeBikes,
 				station.Latitude,
 				station.Longitude,
-				station.Timestamp)
+				station.TimeStamp)
 
 		}
 	}
