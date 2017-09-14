@@ -86,7 +86,7 @@
 				if (this.response != null) {
 					detail = this.response;
 					for (var i=0; i< detail.stations.length; i++){
-						addStationMarker(detail.stations[i].latitude, detail.stations[i].longitude, detail.stations[i])
+						addStationMarker(detail.stations[i].lat, detail.stations[i].lng, detail.stations[i])
 					}
 				}
 			}
@@ -96,16 +96,17 @@
 
 	function addNetworkMarker(network) {
 		var marker = new google.maps.Marker({
-			position: {lat: network.location.latitude, lng: network.location.longitude}, 
+			position: {lat: network.lat, lng: network.lng}, 
 			map: map,
 			title: network.id,
 			icon: {
-				url: 'http://127.0.0.1:8080/bike.png',
+				url: 'http://127.0.0.1:9090/bike.png',
 				size: new google.maps.Size(32, 32),
 			},
-			center: {lat:network.mapwindow.center.lat, lng: network.mapwindow.center.lng},
+			center: {lat:network.clat, lng: network.clng},
 			network:network
 		});
+  
 		marker.addListener('click', function() {
           // 3 seconds after the center of the map has changed, pan back to the
 		window.setTimeout(function() {
@@ -118,9 +119,9 @@
 			var hpixelsOfMap = document.getElementById("map").offsetWidth
 			var vpixelsOfMap = document.getElementById("map").offsetHeight
 			var zoom = 1 
-			var view = Math.max(network.mapwindow.hspan/hpixelsOfMap, network.mapwindow.vspan/vpixelsOfMap)
+			var view = Math.max(network.hspan/hpixelsOfMap, network.vspan/vpixelsOfMap)
 			// iterate until we find a zoom level the stations do not fit
-			while(view < (156543.03392 * Math.cos(network.mapwindow.center.lat * Math.PI / 180) / Math.pow(2, zoom))){
+			while(view < (156543.03392 * Math.cos(network.clat * Math.PI / 180) / Math.pow(2, zoom))){
 				console.log(zoom)
 				zoom++
 				// dont know if this will work, but put here incase there is only one station
@@ -143,16 +144,16 @@
 			map: map,
 			title: station.name,
 			icon: {
-				url: 'http://127.0.0.1:8080/helmet.png',
+				url: 'http://127.0.0.1:9090/helmet.png',
 				size: new google.maps.Size(32, 32),
 				origin: new google.maps.Point(0, 0),
 				anchor: new google.maps.Point(16, 16)
 			},
 			station:station
 		});
-		var infowindow = new google.maps.InfoWindow({
-			content: "Free: "+ station.free_bikes.toString()
-		});
+		// var infowindow = new google.maps.InfoWindow({
+		// 	content: "Free: "+ station.free_bikes.toString()
+		// });
 		marker.addListener('click', function() {
 			if (typeof infowindow)
 			infowindow.open(map,marker)
