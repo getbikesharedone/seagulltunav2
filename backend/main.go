@@ -36,12 +36,6 @@ func main() {
 		log.Fatalf("database error: ", err)
 	}
 
-	var NetworkList []Network
-	db.Select(&NetworkList, "SELECT Company, ID, Name, City, Country, Latitude, Longitude, HSpan, VSpan, CenterLat, CenterLng FROM networks")
-
-	time.Sleep(time.Millisecond * 50)
-	log.Println(len(NetworkList))
-
 	srv := newSrv()
 
 	if err := srv.Run(iris.Addr(":9090"), iris.WithoutVersionChecker); err != nil {
@@ -56,9 +50,7 @@ func newSrv() *iris.Application {
 	srv.Get("/api/network/{id:string}", getDetail)
 	srv.Get("/api/network", getNetworkList)
 	srv.Get("/api/station/{id:string}", getStation)
-
-	// srv.Post("/api/station/{id:string}", updateStation)
-	srv.Post("/api/station/{id:string}/tag", tagStation)
+	srv.Post("/api/station/{id:string}", updateStationHandler)
 	srv.Post("/api/station/{id:string}/review", reviewStation)
 	return srv
 }
@@ -92,18 +84,52 @@ func getStation(ctx irisctx.Context) {
 
 }
 
-// func updateStation(ctx irisctx.Context) {
-// 	id := ctx.Params().Get("id")
-// 	if id == "" {
-// 		ctx.Err()
-// 	}
-// }
-
-func tagStation(ctx irisctx.Context) {
+func updateStationHandler(ctx irisctx.Context) {
 	id := ctx.Params().Get("id")
 	if id == "" {
 		ctx.Err()
 	}
+	var s Station
+	err := ctx.ReadForm(&s)
+	if err != nil {
+		log.Println(err)
+		ctx.Err()
+		return
+	}
+	u := updateStation(s)
+	ctx.Gzip(true)
+	ctx.JSON(u)
+
+}
+
+func updateStation(update Station) Station {
+	var existing Station
+	db.Get(&existing, "SELECT UID, ID, EmptySlots, FreeBikes, Safe FROM stations WHERE ID=$1", update.ID)
+
+	tx := db.MustBegin()
+	if update.FreeBikes != existing.FreeBikes {
+		tx.MustExec("UPDATE stations SET FreeBikes=$1 WHERE UID=$2", update.FreeBikes, existing.UID)
+	}
+	if update.EmptySlots != existing.EmptySlots {
+		tx.MustExec("UPDATE stations SET EmptySlots=$1 WHERE UID=$2", update.EmptySlots, existing.UID)
+	}
+	if update.Safe != existing.Safe {
+		tx.MustExec("UPDATE stations SET Safe=$1 WHERE UID=$2", update.Safe, existing.UID)
+	}
+	tx.MustExec("UPDATE stations SET TimeStamp=$1 WHERE UID=$2", time.Now().UTC(), existing.UID)
+	tx.Commit()
+
+	var updated Station
+	db.Get(&updated, "SELECT UID, ID, Name, Latitude, Longitude, EmptySlots, FreeBikes, Safe, TimeStamp FROM stations where UID=$1", existing.UID)
+
+	var reviews = []Review{}
+	db.Select(&reviews, "SELECT Body, Rating, TimeStamp FROM reviews where StationUID=$1", updated.UID)
+	if len(reviews) != 0 {
+		updated.Reviews = append(updated.Reviews, reviews...)
+	}
+
+	return updated
+
 }
 
 func reviewStation(ctx irisctx.Context) {
@@ -121,7 +147,7 @@ func reviewStation(ctx irisctx.Context) {
 		ctx.Err()
 		return
 	}
-	review.TimeStamp = time.Now()
+	review.TimeStamp = time.Now().UTC()
 	var station Station
 	db.Get(&station, "SELECT UID FROM stations WHERE ID=$1", id)
 	review.StationUID = station.UID

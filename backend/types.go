@@ -4,16 +4,16 @@ import "time"
 
 type Review struct {
 	UID        int       `db:"UID" json:"id"`
-	StationUID string    `db:"StationUID" json:"stationuid"`
+	StationUID int       `db:"StationUID" json:"stationuid"`
 	TimeStamp  time.Time `db:"TimeStamp" json:"time"`
 	Body       string    `db:"Body" json:"body"`
 	Rating     int       `db:"Rating" json:"rating"`
 }
 
 type Station struct {
-	UID        string    `db:"UID" json:"-"`
+	UID        int       `db:"UID" json:"-"`
 	ID         string    `db:"ID" json:"id"`
-	NetworkUID string    `db:"NetworkUID" json:"_"`
+	NetworkUID string    `db:"NetworkUID" json:"-"`
 	Name       string    `db:"Name" json:"name"`
 	EmptySlots int       `db:"EmptySlots" json:"empty"`
 	FreeBikes  int       `db:"FreeBikes" json:"free"`
