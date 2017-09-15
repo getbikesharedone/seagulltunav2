@@ -52,7 +52,7 @@ func main() {
 func newSrv() *iris.Application {
 	srv := iris.New()
 	srv.Use()
-	srv.StaticWeb("/", "../frontend/www")
+	srv.StaticWeb("/", "www/")
 	srv.Get("/api/network/{id:string}", getDetail)
 	srv.Get("/api/network", getNetworkList)
 	srv.Get("/api/station/{id:string}", getStation)
