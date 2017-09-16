@@ -3,6 +3,9 @@ window.Event = new Vue();
 // Stores cluster reference so clearMarkers() can be called
 let markerCluster
 
+// Access to map so markers can be re-added on zoom_out
+let map
+
 const appVue = new Vue({
   el: "#app",
   data: {
@@ -14,9 +17,9 @@ const appVue = new Vue({
   },
   methods: {
     initMap: function () {
-      var myLatLng = { lat: 0, lng: 0 };
+      let myLatLng = { lat: 0, lng: 0 };
 
-      var map = new google.maps.Map(document.getElementById('map'), {
+      map = new google.maps.Map(document.getElementById('map'), {
         zoom: 3,
         center: myLatLng
       });
@@ -24,8 +27,17 @@ const appVue = new Vue({
       networkMarkers = this.addNetworkMarkers(map, this.networks);
       markerCluster = new MarkerClusterer(map, networkMarkers,
         { imagePath: '/m' });
-
-
+        
+      const vm = this;
+      map.addListener('zoom_changed', function () {
+        console.log(markerCluster.getTotalMarkers())
+        zoomLevel = map.getZoom();
+        if (markerCluster.getTotalMarkers() === 0 && zoomLevel < 17) {
+          networkMarkers = vm.addNetworkMarkers(map, vm.networks)
+          markerCluster = new MarkerClusterer(map, networkMarkers,
+            { imagePath: '/m' })
+        }
+      });
     },
     addNetworkMarkers: function (map, networks) {
       let networkMarkers = []
@@ -50,6 +62,8 @@ const appVue = new Vue({
         })
         const vm = this
         marker.addListener('click', function () {
+          map.setCenter(marker.getPosition());
+          map.setZoom(21);
           markerCluster.clearMarkers()
           vm.getStations(this.network)
         });
@@ -92,6 +106,8 @@ const appVue = new Vue({
   mounted() {
     Event.$on("networksLoaded", networks => {
       this.initMap()
+
+
     });
   }
 }); 
