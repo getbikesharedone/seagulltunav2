@@ -1,5 +1,9 @@
 window.Event = new Vue();
 
+Vue.component('modal', {
+  template: '#modal-template'
+})
+
 // Stores cluster reference so clearMarkers() can be called
 let markerCluster
 let map
@@ -7,7 +11,9 @@ const appVue = new Vue({
   el: "#app",
   data: {
     networks: [],
-    stations: []
+    stations: [],
+    activeNetwork: {},
+    showModal: false
   },
   created() {
     this.getNetworks()
@@ -23,7 +29,6 @@ const appVue = new Vue({
       });
 
       networkMarkers = this.addNetworkMarkers(map, this.networks);
-      // stationMarkers = this.addStationsMarkers(map, this.stations);
       markerCluster = new MarkerClusterer(map, networkMarkers,
         { imagePath: '/m' });
 
@@ -77,10 +82,12 @@ const appVue = new Vue({
             url: '/helmet.png',
             size: new google.maps.Size(32, 32),
           },
+          station:station
         })
-        stationsMarkers.push(marker)
+        marker.addListener('click', function () {
+          Event.$emit("clickStation", this.station);
+        });
       }
-      return stationsMarkers;
     },
     getStations: function (network) {
       axios
@@ -89,6 +96,7 @@ const appVue = new Vue({
           if (res.status == 200) {
             if (res.data != null) {
               console.log(res.data)
+              this.activeNetwork = res.data;
               this.stations = res.data.stations;
               Event.$emit("stationsLoaded", this.stations);
             }
@@ -114,12 +122,22 @@ const appVue = new Vue({
         });
     }
   },
+  
   mounted() {
     Event.$on("networksLoaded", networks => {
       this.initMap()
     });
     Event.$on("stationsLoaded", stations => {
       this.addStationsMarkers(map,stations);
+      console.log("Active network", this.activeNetwork)
+    });
+    Event.$on("clickStation", station => {
+      // debug
+      console.log(station)
+      console.log("Active network", this.activeNetwork)
+      console.log(this.showModal)
+      // display modal
+      this.showModal=true;
     });
   }
 }); 
