@@ -6,16 +6,28 @@ let markerCluster
 // Reference to map so markers can be re-added on zoom_out
 let map
 
-let appVue = new Vue({
+const appVue = new Vue({
+
+Vue.component('modal', {
+  template: '#modal-template'
+})
+
+// Stores cluster reference so clearMarkers() can be called
+let markerCluster
+let map
+const appVue = new Vue({
   el: "#app",
   data: {
     networks: [],
     stations: [],
-    stationMarkers: []
+    stationMarkers: [],
+    activeNetwork: {},
+    showModal: false
   },
   created() {
     this.getNetworks()
   },
+  
   methods: {
     initMap: function () {
       let myLatLng = { lat: 0, lng: 0 };
@@ -119,6 +131,8 @@ let appVue = new Vue({
         .then(res => {
           if (res.status == 200) {
             if (res.data != null) {
+              console.log(res.data)
+              this.activeNetwork = res.data;
               this.stations = res.data.stations;
               Event.$emit("stationsLoaded", this.stations);
             }
@@ -147,6 +161,18 @@ let appVue = new Vue({
   mounted() {
     Event.$on("networksLoaded", networks => {
       this.initMap()
+    });
+    Event.$on("stationsLoaded", stations => {
+      this.addStationsMarkers(map,stations);
+      console.log("Active network", this.activeNetwork)
+    });
+    Event.$on("clickStation", station => {
+      // debug
+      console.log(station)
+      console.log("Active network", this.activeNetwork)
+      console.log(this.showModal)
+      // display modal
+      this.showModal=true;
     });
   }
 }); 
