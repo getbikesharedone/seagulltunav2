@@ -6,8 +6,6 @@ let markerCluster
 // Reference to map so markers can be re-added on zoom_out
 let map
 
-const appVue = new Vue({
-
 Vue.component('modal', {
   template: '#modal-template'
 })
