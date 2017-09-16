@@ -1,16 +1,17 @@
 window.Event = new Vue();
 
-// Stores cluster reference so clearMarkers() can be called
+// Stores references so clearMarkers() can be called
 let markerCluster
 
-// Access to map so markers can be re-added on zoom_out
+// Reference to map so markers can be re-added on zoom_out
 let map
 
-const appVue = new Vue({
+let appVue = new Vue({
   el: "#app",
   data: {
     networks: [],
-    stations: []
+    stations: [],
+    stationMarkers: []
   },
   created() {
     this.getNetworks()
@@ -27,50 +28,90 @@ const appVue = new Vue({
       networkMarkers = this.addNetworkMarkers(map, this.networks);
       markerCluster = new MarkerClusterer(map, networkMarkers,
         { imagePath: '/m' });
-        
+
       const vm = this;
       map.addListener('zoom_changed', function () {
-        console.log(markerCluster.getTotalMarkers())
         zoomLevel = map.getZoom();
-        if (markerCluster.getTotalMarkers() === 0 && zoomLevel < 17) {
+        if (markerCluster.getTotalMarkers() === 0 && zoomLevel < 10) {
           networkMarkers = vm.addNetworkMarkers(map, vm.networks)
           markerCluster = new MarkerClusterer(map, networkMarkers,
             { imagePath: '/m' })
+          vm.deleteStationMarkers()
         }
       });
     },
+    setMapOnAll: function (map) {
+      for (var i = 0; i < this.stationMarkers.length; i++) {
+        this.stationMarkers[i].setMap(map);
+      }
+    },
+    deleteStationMarkers: function () {
+      this.clearStationMarkers();
+      this.stationMarkers = [];
+    },
+     clearStationMarkers:function() {
+      this.setMapOnAll(null);
+    },
     addNetworkMarkers: function (map, networks) {
       let networkMarkers = []
+      const vm = this
       for (let i = 0; i < networks.length; i++) {
         const network = networks[i]
+
         let marker = new google.maps.Marker({
           position: {
             lat: network.lat,
             lng: network.lng,
           },
           map,
-          title: network.id,
-          icon: {
-            url: '/bike.png',
-            size: new google.maps.Size(32, 32),
-          },
-          center: {
-            lat: network.clat,
-            lng: network.clng,
-          },
+          title: network.name,
+          icon: '/bike.png',
           network,
         })
-        const vm = this
+
         marker.addListener('click', function () {
-          map.setCenter(marker.getPosition());
-          map.setZoom(21);
-          markerCluster.clearMarkers()
           vm.getStations(this.network)
+          Event.$on("stationsLoaded", function () {
+            vm.addStationMarkers(map, vm.stations)
+            var bounds = new google.maps.LatLngBounds();
+            for (var i = 0; i < vm.stations.length; i++) {
+              bounds.extend(new google.maps.LatLng(vm.stations[i].lat, vm.stations[i].lng));
+            }
+            map.fitBounds(bounds);
+            markerCluster.clearMarkers()
+          });
         });
 
         networkMarkers.push(marker)
       }
       return networkMarkers;
+    },
+    addStationMarkers: function (map, stations) {
+      for (let i = 0; i < stations.length; i++) {
+        const station = stations[i]
+        let marker;
+        if (station.lat !== undefined && station.lng !== undefined) {
+          const lat = station.lat
+          const lng = station.lng
+          marker = new google.maps.Marker({
+            position: {
+              lat,
+              lng,
+            },
+            map,
+            title: station.name,
+            icon: {
+              url: '/helmet.png',
+              size: new google.maps.Size(32, 32),
+              origin: new google.maps.Point(0, 0),
+              anchor: new google.maps.Point(16, 16),
+            },
+            station,
+          })
+          this.stationMarkers.push(marker)
+        }
+      }
+      return this.stationMarkers
     },
     getStations: function (network) {
       axios
@@ -106,8 +147,6 @@ const appVue = new Vue({
   mounted() {
     Event.$on("networksLoaded", networks => {
       this.initMap()
-
-
     });
   }
 }); 
