@@ -17,18 +17,18 @@ var db *sqlx.DB
 
 func main() {
 	log.Println("starting seagull")
-
+	var err error
 	var reBuildDB = flag.Bool("rebuild", false, "rebuild database")
 	flag.Parse()
 
-	var err error
+	// var err error
 
 	if *reBuildDB {
 		if err := buildDatabase(); err != nil {
 			log.Fatalf("build database error: ", err)
 		}
 		if err := buildNetworkExtents(); err != nil {
-			log.Fatalf("build database extents: ", err)
+			log.Fatalf("build database extents: %v", err)
 		}
 	}
 
@@ -62,21 +62,17 @@ func getStation(ctx irisctx.Context) {
 		ctx.NotFound()
 		return
 	}
-	var stations = []Station{}
-	db.Select(&stations, "SELECT UID, ID, Name, Latitude, Longitude, EmptySlots, FreeBikes, Safe FROM stations where ID=$1", id)
-	if len(stations) == 0 {
-		log.Printf("no stations in network %v", id)
+	var stations Station
+	db.Get(&stations, "SELECT StationID, Name, Latitude, Longitude, EmptySlots, FreeBikes, Safe, Open, TimeStamp FROM stations where StationID=$1", id)
+
+	if stations.StationID == 0 {
 		ctx.NotFound()
 		return
 	}
-
-	log.Println(stations[0])
 	var reviews = []Review{}
-	db.Select(&reviews, "SELECT Body, Rating, TimeStamp FROM reviews where StationUID=$1", stations[0].UID)
-	log.Println(reviews)
+	db.Select(&reviews, "SELECT ReviewID, Body, Rating, TimeStamp FROM reviews where StationID=$1", stations.StationID)
 	if len(reviews) != 0 {
-		log.Printf("no reviews for station %v", id)
-		stations[0].Reviews = append(stations[0].Reviews, reviews...)
+		stations.Reviews = append(stations.Reviews, reviews...)
 	}
 
 	ctx.Gzip(true)
@@ -104,26 +100,29 @@ func updateStationHandler(ctx irisctx.Context) {
 
 func updateStation(update Station) Station {
 	var existing Station
-	db.Get(&existing, "SELECT UID, ID, EmptySlots, FreeBikes, Safe FROM stations WHERE ID=$1", update.ID)
+	db.Get(&existing, "SELECT StationID, ID, EmptySlots, FreeBikes, Safe FROM stations WHERE StationID=$1", update.StationID)
 
 	tx := db.MustBegin()
 	if update.FreeBikes != existing.FreeBikes {
-		tx.MustExec("UPDATE stations SET FreeBikes=$1 WHERE UID=$2", update.FreeBikes, existing.UID)
+		tx.MustExec("UPDATE stations SET FreeBikes=$1 WHERE StationID=$2", update.FreeBikes, existing.StationID)
 	}
 	if update.EmptySlots != existing.EmptySlots {
-		tx.MustExec("UPDATE stations SET EmptySlots=$1 WHERE UID=$2", update.EmptySlots, existing.UID)
+		tx.MustExec("UPDATE stations SET EmptySlots=$1 WHERE StationID=$2", update.EmptySlots, existing.StationID)
 	}
 	if update.Safe != existing.Safe {
-		tx.MustExec("UPDATE stations SET Safe=$1 WHERE UID=$2", update.Safe, existing.UID)
+		tx.MustExec("UPDATE stations SET Safe=$1 WHERE StationID=$2", update.Safe, existing.StationID)
 	}
-	tx.MustExec("UPDATE stations SET TimeStamp=$1 WHERE UID=$2", time.Now().UTC(), existing.UID)
+	if update.Open != existing.Open {
+		tx.MustExec("UPDATE stations SET Open=$1 WHERE StationID=$2", update.Open, existing.StationID)
+	}
+	tx.MustExec("UPDATE stations SET TimeStamp=$1 WHERE StationID=$2", time.Now().UTC(), existing.StationID)
 	tx.Commit()
 
 	var updated Station
-	db.Get(&updated, "SELECT UID, ID, Name, Latitude, Longitude, EmptySlots, FreeBikes, Safe, TimeStamp FROM stations where UID=$1", existing.UID)
+	db.Get(&updated, "SELECT StationID, Name, Latitude, Longitude, EmptySlots, FreeBikes, Safe, TimeStamp FROM stations where StationID=$1", existing.StationID)
 
 	var reviews = []Review{}
-	db.Select(&reviews, "SELECT Body, Rating, TimeStamp FROM reviews where StationUID=$1", updated.UID)
+	db.Select(&reviews, "SELECT Body, Rating, TimeStamp FROM reviews where StationUID=$1", updated.StationID)
 	if len(reviews) != 0 {
 		updated.Reviews = append(updated.Reviews, reviews...)
 	}
@@ -149,11 +148,11 @@ func reviewStation(ctx irisctx.Context) {
 	}
 	review.TimeStamp = time.Now().UTC()
 	var station Station
-	db.Get(&station, "SELECT UID FROM stations WHERE ID=$1", id)
-	review.StationUID = station.UID
+	db.Get(&station, "SELECT UID FROM stations WHERE StationID=$1", id)
+	review.StationID = station.StationID
 	tx := db.MustBegin()
 	tx.MustExec("INSERT INTO reviews (StationUID,TimeStamp,Body,Rating) VALUES ($1, $2, $3, $4)",
-		review.StationUID,
+		review.StationID,
 		review.TimeStamp,
 		review.Body,
 		review.Rating)
@@ -169,14 +168,14 @@ func getDetail(ctx irisctx.Context) {
 		return
 	}
 	var net Network
-	db.Get(&net, "SELECT UID, Company, ID, Name, City, Country, Latitude, Longitude, HSpan, VSpan, CenterLat, CenterLng FROM networks WHERE ID=$1", id)
-	if net.ID == "" {
+	db.Get(&net, "SELECT NetworkID, Company, Name, City, Country, Latitude, Longitude, HSpan, VSpan, CenterLat, CenterLng FROM networks WHERE NetworkID=$1", id)
+	if net.NetworkID == 0 {
 		log.Printf("network %v does not exist", id)
 		ctx.NotFound()
 		return
 	}
 	var stations = []Station{}
-	db.Select(&stations, "SELECT ID, Name, Latitude, Longitude FROM stations where NetworkUID=$1", net.UID)
+	db.Select(&stations, "SELECT StationID, Name, Latitude, Longitude, EmptySlots, FreeBikes, Safe, Open, TimeStamp FROM stations where NetworkID=$1", id)
 	if len(stations) == 0 {
 		log.Printf("no stations in network %v", id)
 	}
@@ -191,7 +190,7 @@ func getNetworkList(ctx irisctx.Context) {
 	defer timeLog(time.Now(), "getNetworkList")
 
 	var NetworkList []Network
-	db.Select(&NetworkList, "SELECT Company, ID, Name, City, Country, Latitude, Longitude, HSpan, VSpan, CenterLat, CenterLng FROM networks")
+	db.Select(&NetworkList, "SELECT Company, NetworkID, Name, City, Country, Latitude, Longitude, HSpan, VSpan, CenterLat, CenterLng FROM networks")
 	if len(NetworkList) == 0 {
 		ctx.NotFound()
 		return
