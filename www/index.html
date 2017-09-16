@@ -1,166 +1,39 @@
-<!doctype html>
-<!-- Copyright seagull Authors All rights reserved -->
-<!-- Please see  github.com/notthegoodorthebad/seagull/ for Licence-->
+<!DOCTYPE html>
 <html>
-<head>
-	<script async defer
-		src="styles.js">
-	</script>
-	<script async defer
-		src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBj_B8fJmNw2_QFQMypsw_9dYXOe5wB13Q&callback=initMap">
-	</script>
-	
 
+<head>
+	<meta name="viewport" content="initial-scale=1.0, user-scalable=no">
+	<meta charset="utf-8">
+	<title>Simple markers</title>
 	<style>
-	html, body, #map {
-		padding: 0px;
-		margin: 0px;
-		width: 100%;
-		height: 100%;
-		overflow: hidden;
-	}
-    </style>
+		/* Always set the map height explicitly to define the size of the div
+       * element that contains the map. */
+
+		#map {
+			height: 100%;
+		}
+		/* Optional: Makes the sample page fill the window. */
+
+		html,
+		body,
+		#app {
+			height: 100%;
+			margin: 0;
+			padding: 0;
+		}
+	</style>
 </head>
 
-<body >
-			<div id="map"></div>	
-<script>
-	var map
-	var Networks =[];
-	var infoOpen
-	function initMap() {
-		var myLatlng = {lat: -25.363, lng: 131.044};
-	  
-		map = new google.maps.Map(document.getElementById('map'), {
-		  zoom: 4,
-		  center: myLatlng,
-		  styles: styles
-		});
-	  
-		var iconBase = 'https://127.0.0.1:8080/bike.svg';
-		var icons = {
-			info: {
-            icon: iconBase + 'bike.svg'
-          }
-		}
-		window.setTimeout(function() {
-			load("/api/network");	
-    	}, 1);
-	  }
-
-
-
-	function load(url,lat,lng) {
-		var xhr = new XMLHttpRequest();
-		if ((lat != undefined) && (lng != undefined)) {
-			url = url + "?Lat=" + lat +"&Lng=" + lng +"&Rng=1000000"
-		}
-		console.log(url)
-		xhr.open('GET', url);
-		xhr.responseType = 'json';
-				
-		xhr.onload = function(e) {
-		    if (this.status == 200) {
-                console.log(this.response)
-				if (this.response != null) {
-					Networks = this.response;
-					for (var i=0; i< Networks.length; i++){
-						addNetworkMarker(Networks[i])
-					}
-				}
-			}
-		}
-		xhr.send();
-	};
-
-	function loadStations(id) {
-		var xhr = new XMLHttpRequest();
-		var url = "/api/network/" + id
-		console.log(url)
-		xhr.open('GET', url);
-		xhr.responseType = 'json';
-				
-		xhr.onload = function(e) {
-		    if (this.status == 200) {
-                console.log(this.response)
-				if (this.response != null) {
-					detail = this.response;
-					for (var i=0; i< detail.stations.length; i++){
-						addStationMarker(detail.stations[i].lat, detail.stations[i].lng, detail.stations[i])
-					}
-				}
-			}
-		}
-		xhr.send();
-	};
-
-	function addNetworkMarker(network) {
-		var marker = new google.maps.Marker({
-			position: {lat: network.lat, lng: network.lng}, 
-			map: map,
-			title: network.id,
-			icon: {
-				url: 'http://127.0.0.1:9090/bike.png',
-				size: new google.maps.Size(32, 32),
-			},
-			center: {lat:network.clat, lng: network.clng},
-			network:network
-		});
-  
-		marker.addListener('click', function() {
-          // 3 seconds after the center of the map has changed, pan back to the
-		window.setTimeout(function() {
-			loadStations(marker.title);	
-			// console.log(marker.title)
-		}, 1);
-		
-          window.setTimeout(function() {
-			// get size of map
-			var hpixelsOfMap = document.getElementById("map").offsetWidth
-			var vpixelsOfMap = document.getElementById("map").offsetHeight
-			var zoom = 1 
-			var view = Math.max(network.hspan/hpixelsOfMap, network.vspan/vpixelsOfMap)
-			// iterate until we find a zoom level the stations do not fit
-			while(view < (156543.03392 * Math.cos(network.clat * Math.PI / 180) / Math.pow(2, zoom))){
-				console.log(zoom)
-				zoom++
-				// dont know if this will work, but put here incase there is only one station
-				if (zoom > 18) {
-					break
-				}
-			}
-
-			// set zoom one level up
-			map.setZoom(zoom-1);
-			map.panTo(marker.center);
-          }, 300);
-		});
-
-	}
-
-	function addStationMarker(lat, lng, station) {
-		var marker = new google.maps.Marker({
-			position: {lat: lat, lng: lng}, 
-			map: map,
-			title: station.name,
-			icon: {
-				url: 'http://127.0.0.1:9090/helmet.png',
-				size: new google.maps.Size(32, 32),
-				origin: new google.maps.Point(0, 0),
-				anchor: new google.maps.Point(16, 16)
-			},
-			station:station
-		});
-		// var infowindow = new google.maps.InfoWindow({
-		// 	content: "Free: "+ station.free_bikes.toString()
-		// });
-		marker.addListener('click', function() {
-			if (typeof infowindow)
-			infowindow.open(map,marker)
-			// openStationEdit()
-			console.log(marker.station)
-		})
-	}
-
-</script>
+<body>
+	<div id="app">
+			<div id="map"></div>
+	</div>
+	
+	<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBj_B8fJmNw2_QFQMypsw_9dYXOe5wB13Q"></script>
+	<script src="https://unpkg.com/vue"></script>
+	<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+	<script src="/markerclusterer.js"></script>
+	<script src="/app.js"></script>
 </body>
+
+</html>

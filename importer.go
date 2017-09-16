@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/jmoiron/sqlx"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 type APINetList struct {
@@ -67,9 +68,8 @@ type APINetwork struct {
 
 var schema = `
 DROP TABLE IF EXISTS networks;
-CREATE TABLE networks (
-	UID         INTEGER PRIMARY KEY,
-	ID          VARCHAR(80),
+CREATE TABLE networks (  
+	NetworkID   INTEGER PRIMARY KEY,
 	Company     VARCHAR(250),
 	Href        VARCHAR(250),
 	City        VARCHAR(250), 
@@ -87,22 +87,22 @@ CREATE TABLE networks (
 );
 DROP TABLE IF EXISTS stations;
 CREATE TABLE stations (
-	UID         INTEGER PRIMARY KEY,
-	ID          VARCHAR(80),
-	NetworkUID  VARCHAR(80),
+	StationID   INTEGER PRIMARY KEY,
+	NetworkID   INTEGER,
 	Name        VARCHAR(250),
 	EmptySlots  INTEGER,
 	FreeBikes   INTEGER,
 	Extra       INTEGER,
 	Safe		INTEGER DEFAULT 1,
+	Open		INTEGER DEFAULT 1,
 	Latitude    DOUBLE,
 	Longitude   DOUBLE,
 	TimeStamp   DATETIME
 );
 DROP TABLE IF EXISTS reviews;
 CREATE TABLE reviews (
-	UID         INTEGER PRIMARY KEY,
-	StationUID	VARCHAR(80)  DEFAULT '',
+	ReviewID    INTEGER PRIMARY KEY,
+	StationID	INTEGER,
 	Body        VARCHAR(250) DEFAULT '',
 	Rating      INTEGER,
 	TimeStamp   DATETIME
@@ -143,10 +143,9 @@ func downloadNetworks() error {
 			break
 		}
 		networks = append(networks, network)
-
 	}
 
-	out, err := os.Create("raw.json")
+	out, err := os.Create("bsn.json")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -161,13 +160,13 @@ func downloadNetworks() error {
 
 func buildDatabase() error {
 
-	if _, err := os.Stat("raw.json"); os.IsNotExist(err) {
+	if _, err := os.Stat("bsn.json"); os.IsNotExist(err) {
 		if err := downloadNetworks(); err != nil {
 			return err
 		}
 	}
 
-	data, err := os.Open("raw.json")
+	data, err := os.Open("bsn.json")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -184,7 +183,8 @@ func buildDatabase() error {
 	defer db.Close()
 	db.MustExec(schema)
 
-	tx := db.MustBegin()
+	NetworkID := 0
+
 	for _, net := range networks {
 		network := net.Network
 		var companySlice []string
@@ -211,14 +211,17 @@ func buildDatabase() error {
 			}
 		}
 		var company string
+
 		for _, line := range companySlice {
 			company += line
 		}
 		if network.ID == "" || network.Company == "" {
 			continue
 		}
-		tx.MustExec("INSERT INTO networks (ID,Company,Href,City,Country,Latitude,Longitude,Name,GbfsHref,LicenseName,LicenseURL) VALUES ($1, $2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
-			network.ID,
+		NetworkID++
+		fmt.Println(NetworkID)
+		db.MustExec("INSERT INTO networks (NetworkID,Company,Href,City,Country,Latitude,Longitude,Name,GbfsHref,LicenseName,LicenseURL) VALUES ($1, $2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
+			NetworkID,
 			company,
 			network.Href,
 			network.Location.City,
@@ -230,55 +233,57 @@ func buildDatabase() error {
 			network.License.Name,
 			network.License.URL)
 
-		var NetworkUID string
-		if err = tx.Get(&NetworkUID, "SELECT uid FROM networks WHERE ID=$1", network.ID); err != nil {
-			log.Println(err)
-			continue
-		}
-
+		// var NetworkUID string
+		// if err = tx.Get(&NetworkUID, "SELECT uid FROM networks WHERE ID=$1", network.ID); err != nil {
+		// 	log.Println(err)
+		// 	continue
+		// }
+		tx := db.MustBegin()
 		for _, station := range network.Stations {
-			tx.MustExec("INSERT INTO stations (ID,NetworkUID,Name,EmptySlots,FreeBikes,Latitude,Longitude,TimeStamp) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
-				station.ID,
-				NetworkUID,
+			fmt.Println(station)
+			tx.MustExec("INSERT INTO stations (NetworkID,Name,EmptySlots,FreeBikes,Latitude,Longitude,TimeStamp) VALUES ($1,$2,$3,$4,$5,$6,$7)",
+				NetworkID,
 				station.Name,
 				station.EmptySlots,
 				station.FreeBikes,
 				station.Latitude,
 				station.Longitude,
-				station.TimeStamp)
+				time.Now().UTC())
 
 		}
+		tx.Commit()
+
 	}
-	tx.Commit()
 
 	return nil
 }
 
 func buildNetworkExtents() error {
-
-	db, err := sqlx.Open("sqlite3", "bsn.db")
-	if err != nil {
+	var err error
+	var db *sqlx.DB
+	if db, err = sqlx.Open("sqlite3", "bsn.db"); err != nil {
 		return nil
 	}
 	defer db.Close()
 
-	var Networks []Network
-	db.Select(&Networks, "SELECT UID FROM networks")
-	if len(Networks) == 0 {
+	var networks []Network
+	db.Select(&networks, "SELECT NetworkID FROM networks")
+	if len(networks) == 0 {
+		fmt.Println(networks)
 		return errors.New("no networks in database")
 	}
-	for _, network := range Networks {
+	for _, network := range networks {
 		var stations []Station
-		db.Select(&stations, "SELECT UID, Latitude, Longitude FROM stations WHERE NetworkUID=$1", network.UID)
+		db.Select(&stations, "SELECT StationID, Latitude, Longitude FROM stations WHERE NetworkID=$1", network.NetworkID)
 		if len(stations) == 0 {
-			fmt.Println(network.UID)
+			fmt.Println(network.NetworkID)
 			// return errors.New("no stations in network")
 			continue
 		}
 		clat, clng, hspan, vspan := extents(stations)
 
-		db.MustExec("UPDATE networks SET CenterLat=$1, CenterLng=$2, HSpan=$3, VSpan=$4 WHERE UID=$5",
-			clat, clng, hspan, vspan, network.UID)
+		db.MustExec("UPDATE networks SET CenterLat=$1, CenterLng=$2, HSpan=$3, VSpan=$4 WHERE NetworkID=$5",
+			clat, clng, hspan, vspan, network.NetworkID)
 
 	}
 	return nil
