@@ -10,9 +10,6 @@ Vue.component('modal', {
   template: '#modal-template'
 })
 
-// Stores cluster reference so clearMarkers() can be called
-let markerCluster
-let map
 const appVue = new Vue({
   el: "#app",
   data: {
