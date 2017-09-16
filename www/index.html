@@ -23,10 +23,25 @@
 		}
 	</style>
 </head>
+<!-- template for menu -->
+<script type="text/x-template" id="modal-template">
+	<transition name="modal">
+	  <div class="modal-mask">
+		<div class="modal-wrapper">
+		  <div class="modal-container">
+				<button class="modal-default-button" @click="$emit('close')">
+				  OK
+				</button>
+		  </div>
+		</div>
+	  </div>
+	</transition>
+  </script>
 
 <body>
 	<div id="app">
 			<div id="map"></div>
+			<modal v-if="showModal" @close="showModal = false"></modal>
 	</div>
 	
 	<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBj_B8fJmNw2_QFQMypsw_9dYXOe5wB13Q"></script>
@@ -34,6 +49,9 @@
 	<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
 	<script src="/markerclusterer.js"></script>
 	<script src="/app.js"></script>
+	<link href="/menu.css" rel='stylesheet' type='text/css'>
+	<script type="text/javascript">
+    </script>
 </body>
 
 </html>
