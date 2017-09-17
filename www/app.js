@@ -6,16 +6,56 @@ let markerCluster
 // Reference to map so markers can be re-added on zoom_out
 let map
 
-let appVue = new Vue({
+Vue.component('modal', {
+  template: '#modal-template'
+})
+
+Vue.component("stations-table", {
+  template: `
+  <table class="ui table unstackable inverted orange striped">
+    <thead>
+    <tr>
+    <th>Name</th>
+    <th>Free Bikes</th>
+    <th>Open</th>
+    <th>Safe</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr v-for="station in stations">
+    <td>{{station.name}}</td>
+    <td>{{station.free}}</td>
+    <td>{{station.open}}</td>
+    <td>{{station.safe}}</td>
+    </tr>
+    </tbody>
+    </table>
+    `,
+  data() {
+    return {
+      stations: []
+    };
+  },
+  created() {
+    Event.$on("stationsLoaded", stations => {
+      this.stations = stations;
+    });
+  }
+});
+
+const appVue = new Vue({
   el: "#app",
   data: {
     networks: [],
     stations: [],
-    stationMarkers: []
+    stationMarkers: [],
+    activeNetwork: {},
+    showModal: false
   },
   created() {
     this.getNetworks()
   },
+  
   methods: {
     initMap: function () {
       let myLatLng = { lat: 0, lng: 0 };
@@ -119,6 +159,7 @@ let appVue = new Vue({
         .then(res => {
           if (res.status == 200) {
             if (res.data != null) {
+              this.activeNetwork = res.data;
               this.stations = res.data.stations;
               Event.$emit("stationsLoaded", this.stations);
             }
@@ -147,6 +188,18 @@ let appVue = new Vue({
   mounted() {
     Event.$on("networksLoaded", networks => {
       this.initMap()
+    });
+    Event.$on("stationsLoaded", stations => {
+      this.addStationsMarkers(map,stations);
+      console.log("Active network", this.activeNetwork)
+    });
+    Event.$on("clickStation", station => {
+      // debug
+      console.log(station)
+      console.log("Active network", this.activeNetwork)
+      console.log(this.showModal)
+      // display modal
+      this.showModal=true;
     });
   }
 }); 
