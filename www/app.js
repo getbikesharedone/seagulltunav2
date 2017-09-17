@@ -10,36 +10,95 @@ Vue.component('modal', {
   template: '#modal-template'
 })
 
+Vue.component('rating', {
+  template: '<div class="ui rating" data-rating="3" data-max-rating="5"></div>',
+  mounted() {
+    $('.ui.rating')
+      .rating()
+      ;
+      
+  }
+})
+
 Vue.component("stations-table", {
   template: `
-  <table class="ui table unstackable inverted orange striped">
-    <thead>
-    <tr>
-    <th>Name</th>
-    <th>Free Bikes</th>
-    <th>Open</th>
-    <th>Safe</th>
+  <div style="width: 100%; height: 100%;overflow-x: scroll;">
+
+  <div class="ui styled fluid accordion">
+
+
+
+  <table class="ui table unstackable inverted orange ">
+  <thead>
+    <tr><th><div class="ui horizontal yellow statistic">
+    
+    <div class="value">
+      {{stations.length}}
+    </div>
+    <div class="label">
+      Stations
+    </div>
+    <div class="value">
+    {{networksLength}}
+  </div>
+
+  <div class="label">
+    Networks
+  </div>
+  </div></th>
+  </tr></thead>
+  <tbody>
+    <tr style="width:95%;margin-left:auto; margin-right:auto; margin-top:15px; margin-bottom:15px" class="ui card" v-for="station in stations">
+    <div class="title">
+    <td>
+    
+    <span class="header">{{station.name}}</span>
+    <div>
+    <span>
+      Open
+      <i v-bind:class="{ 'check square icon': station.open }"></i>
+    </span>
+    <span>
+    Safe
+    <i v-bind:class="{ 'check square icon': station.safe }"></i>
+    </span>
+    <span>
+    Available: <span>{{station.free}}</span>
+    </span></div>
+    
+    
+      </td>
+      </div>  
+  <div class=" content">
+    <p>Insert review</p>
+  </div>
+    
     </tr>
-    </thead>
-    <tbody>
-    <tr v-for="station in stations">
-    <td>{{station.name}}</td>
-    <td>{{station.free}}</td>
-    <td>{{station.open}}</td>
-    <td>{{station.safe}}</td>
-    </tr>
-    </tbody>
-    </table>
+  </tbody>
+</table>
+
+
+</div>
+    </div>
     `,
   data() {
     return {
-      stations: []
+      stations: [],
+      networksLength: 0
     };
   },
   created() {
     Event.$on("stationsLoaded", stations => {
       this.stations = stations;
     });
+    Event.$on("networksLoaded", networks => {
+      this.networksLength = networks.length;
+    });
+  },
+  mounted(){
+    $('.ui.accordion')
+    .accordion()
+  ;
   }
 });
 
@@ -55,7 +114,7 @@ const appVue = new Vue({
   created() {
     this.getNetworks()
   },
-  
+
   methods: {
     initMap: function () {
       let myLatLng = { lat: 0, lng: 0 };
@@ -89,7 +148,7 @@ const appVue = new Vue({
       this.clearStationMarkers();
       this.stationMarkers = [];
     },
-     clearStationMarkers:function() {
+    clearStationMarkers: function () {
       this.setMapOnAll(null);
     },
     addNetworkMarkers: function (map, networks) {
@@ -190,7 +249,7 @@ const appVue = new Vue({
       this.initMap()
     });
     Event.$on("stationsLoaded", stations => {
-      this.addStationMarkers(map,stations);
+      this.addStationMarkers(map, stations);
       console.log("Active network", this.activeNetwork)
     });
     Event.$on("clickStation", station => {
@@ -199,7 +258,8 @@ const appVue = new Vue({
       console.log("Active network", this.activeNetwork)
       console.log(this.showModal)
       // display modal
-      this.showModal=true;
+      this.showModal = true;
+
     });
   }
 }); 
