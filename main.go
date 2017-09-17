@@ -50,9 +50,11 @@ func newSrv() *iris.Application {
 	srv.StaticWeb("/", "www/")
 	srv.Get("/api/network/{id:string}", getDetail)
 	srv.Get("/api/network", getNetworkList)
-	srv.Get("/api/station/{id:string}", getStation)
-	srv.Post("/api/station/{id:string}", updateStationHandler)
-	srv.Post("/api/station/{id:string}/review", reviewStation)
+	srv.Get("/api/review/{id:int}", getReview)
+	srv.Put("/api/review/{id:int}", editReview)
+	srv.Get("/api/station/{id:int}", getStation)
+	srv.Post("/api/station/{id:int}", updateStationHandler)
+	srv.Post("/api/station/{id:int}/review", reviewStation)
 	return srv
 }
 
@@ -85,6 +87,37 @@ func getStation(ctx irisctx.Context) {
 	ctx.Gzip(true)
 	ctx.JSON(stations)
 
+}
+
+func getReview(ctx irisctx.Context) {
+	defer timeLog(time.Now(), "getReview")
+	idStr := ctx.Params().Get("id")
+
+	if idStr == "" {
+		ctx.NotFound()
+		return
+	}
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		ctx.NotFound()
+		return
+	}
+	var review Review
+	err = db.Get(&review, "SELECT ReviewID, StationID, TimeStamp, Body, Rating, FROM reviews where ReviewID=$1", id)
+	if err != nil {
+		log.Println(err)
+		ctx.NotFound()
+		return
+	}
+
+	ctx.Gzip(true)
+	ctx.JSON(review)
+
+}
+
+func editReview(ctx irisctx.Context) {
+	ctx.NotFound()
+	return
 }
 
 func updateStationHandler(ctx irisctx.Context) {
