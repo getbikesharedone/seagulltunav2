@@ -190,7 +190,7 @@ const appVue = new Vue({
       this.initMap()
     });
     Event.$on("stationsLoaded", stations => {
-      this.addStationsMarkers(map,stations);
+      this.addStationMarkers(map,stations);
       console.log("Active network", this.activeNetwork)
     });
     Event.$on("clickStation", station => {
