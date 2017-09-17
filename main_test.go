@@ -248,7 +248,7 @@ func TestGetStationWithBadInput(t *testing.T) {
 // 	}
 // }
 
-func TestUpdateStation(t *testing.T) {
+func TestUpdateStationDB(t *testing.T) {
 
 	tests := []struct {
 		name  string
@@ -289,7 +289,7 @@ func TestUpdateStation(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := updateStation(tc.input)
+			got, err := updateStationDB(tc.input)
 			if err != nil {
 				t.Errorf("got and error that was unexpected :%v", err)
 			}
@@ -308,6 +308,101 @@ func TestUpdateStation(t *testing.T) {
 			if got.Open != tc.want.Open {
 				t.Errorf("updateStation(Open) = %v, want %v", got.Open, tc.want.Open)
 			}
+		})
+	}
+}
+
+func TestUpdateStation(t *testing.T) {
+	testsrv := newSrv()
+
+	e := httptest.New(t, testsrv)
+	tests := []struct {
+		name    string
+		id      string
+		req     Station
+		status  int
+		content string
+	}{
+		{name: "test1", id: "1", req: Station{StationID: 1, EmptySlots: 1200}, content: "application/json", status: 200},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			response := e.POST("/api/station/" + tt.id).WithJSON(&tt.req).Expect().Status(tt.status).ContentType(tt.content).Body().Raw()
+			if tt.status == 200 {
+				var got Station
+				if err := json.Unmarshal([]byte(response), &got); err != nil {
+					log.Println(err)
+				}
+				if got.EmptySlots != tt.req.EmptySlots {
+					t.Errorf("expected: %v but got: %v", tt.req.EmptySlots, got.EmptySlots)
+				}
+				if got.FreeBikes != tt.req.FreeBikes {
+					t.Errorf("expected: %v but got: %v", tt.req.FreeBikes, got.FreeBikes)
+				}
+				if got.Open != tt.req.Open {
+					t.Errorf("expected: %v but got: %v", tt.req.Open, got.Open)
+				}
+				if got.Safe != tt.req.Safe {
+					t.Errorf("expected: %v but got: %v", tt.req.Safe, got.Safe)
+				}
+			}
+
+		})
+	}
+}
+
+func TestEditRewview(t *testing.T) {
+	testsrv := newSrv()
+
+	e := httptest.New(t, testsrv)
+	tests := []struct {
+		name    string
+		id      string
+		req     Review
+		content string
+		status  int
+	}{
+		{
+			name:    "normal",
+			id:      "1",
+			req:     Review{ReviewID: 1, Body: "some body text", Rating: 12},
+			content: "application/json",
+			status:  200,
+		},
+		{
+			name:    "body to long",
+			id:      "1",
+			req:     Review{ReviewID: 1, Body: "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has", Rating: 12},
+			content: "",
+			status:  400,
+		},
+		{
+			name:    "wrong id",
+			id:      "100000000000",
+			req:     Review{ReviewID: 1000000000, Body: "It has", Rating: 12},
+			content: "",
+			status:  404,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			response := e.PUT("/api/review/" + tt.id).WithJSON(&tt.req).Expect().Status(tt.status).ContentType(tt.content).Body().Raw()
+			if tt.status == 200 {
+				var got Review
+				if err := json.Unmarshal([]byte(response), &got); err != nil {
+					log.Println(err)
+				}
+				if got.ReviewID != tt.req.ReviewID {
+					t.Errorf("expected: %v but got: %v", tt.req.ReviewID, got.ReviewID)
+				}
+				if got.Body != tt.req.Body {
+					t.Errorf("expected: %v but got: %v", tt.req.Body, got.Body)
+				}
+				if got.Rating != tt.req.Rating {
+					t.Errorf("expected: %v but got: %v", tt.req.Rating, got.Rating)
+				}
+			}
+
 		})
 	}
 }

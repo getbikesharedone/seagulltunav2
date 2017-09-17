@@ -53,7 +53,7 @@ func newSrv() *iris.Application {
 	srv.Get("/api/review/{id:int}", getReview)
 	srv.Put("/api/review/{id:int}", editReview)
 	srv.Get("/api/station/{id:int}", getStation)
-	srv.Post("/api/station/{id:int}", updateStationHandler)
+	srv.Post("/api/station/{id:int}", updateStation)
 	srv.Post("/api/station/{id:int}/review", reviewStation)
 	return srv
 }
@@ -116,6 +116,7 @@ func getReview(ctx irisctx.Context) {
 }
 
 func editReview(ctx irisctx.Context) {
+	defer timeLog(time.Now(), "editReview")
 	var review Review
 	if err := ctx.ReadJSON(&review); err != nil {
 		log.Printf("error parsing json: %v\n", err)
@@ -158,19 +159,23 @@ func editReview(ctx irisctx.Context) {
 	ctx.JSON(updated)
 }
 
-func updateStationHandler(ctx irisctx.Context) {
+func updateStation(ctx irisctx.Context) {
+	defer timeLog(time.Now(), "updateStation")
 	id := ctx.Params().Get("id")
 	if id == "" {
 		ctx.Err()
-	}
-	var s Station
-	err := ctx.ReadForm(&s)
-	if err != nil {
-		log.Println(err)
-		ctx.Err()
 		return
 	}
-	u, err := updateStation(s)
+
+	var s Station
+	if err := ctx.ReadJSON(&s); err != nil {
+		log.Printf("error parsing json: %v\n", err)
+		ctx.StatusCode(iris.StatusBadRequest)
+		ctx.WriteString(err.Error())
+		return
+	}
+
+	u, err := updateStationDB(s)
 	if err != nil {
 		log.Printf("error updating staion: %v\n", err)
 		ctx.Err()
@@ -182,7 +187,7 @@ func updateStationHandler(ctx irisctx.Context) {
 
 }
 
-func updateStation(update Station) (Station, error) {
+func updateStationDB(update Station) (Station, error) {
 	var existing Station
 	err := db.Get(&existing, "SELECT StationID, EmptySlots, FreeBikes, Safe FROM stations WHERE StationID=$1", update.StationID)
 	if err != nil {
