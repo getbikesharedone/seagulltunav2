@@ -5,6 +5,7 @@ package main
 import (
 	"flag"
 	"log"
+	"strconv"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -49,16 +50,24 @@ func newSrv() *iris.Application {
 	srv.StaticWeb("/", "www/")
 	srv.Get("/api/network/{id:string}", getDetail)
 	srv.Get("/api/network", getNetworkList)
-	srv.Get("/api/station/{id:string}", getStation)
-	srv.Post("/api/station/{id:string}", updateStationHandler)
-	srv.Post("/api/station/{id:string}/review", reviewStation)
+	srv.Get("/api/review/{id:int}", getReview)
+	srv.Put("/api/review/{id:int}", editReview)
+	srv.Get("/api/station/{id:int}", getStation)
+	srv.Post("/api/station/{id:int}", updateStationHandler)
+	srv.Post("/api/station/{id:int}/review", reviewStation)
 	return srv
 }
 
 func getStation(ctx irisctx.Context) {
 	defer timeLog(time.Now(), "getStation")
-	id := ctx.Params().Get("id")
-	if id == "" {
+	idStr := ctx.Params().Get("id")
+
+	if idStr == "" {
+		ctx.NotFound()
+		return
+	}
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
 		ctx.NotFound()
 		return
 	}
@@ -80,6 +89,37 @@ func getStation(ctx irisctx.Context) {
 
 }
 
+func getReview(ctx irisctx.Context) {
+	defer timeLog(time.Now(), "getReview")
+	idStr := ctx.Params().Get("id")
+
+	if idStr == "" {
+		ctx.NotFound()
+		return
+	}
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		ctx.NotFound()
+		return
+	}
+	var review Review
+	err = db.Get(&review, "SELECT ReviewID, StationID, TimeStamp, Body, Rating, FROM reviews where ReviewID=$1", id)
+	if err != nil {
+		log.Println(err)
+		ctx.NotFound()
+		return
+	}
+
+	ctx.Gzip(true)
+	ctx.JSON(review)
+
+}
+
+func editReview(ctx irisctx.Context) {
+	ctx.NotFound()
+	return
+}
+
 func updateStationHandler(ctx irisctx.Context) {
 	id := ctx.Params().Get("id")
 	if id == "" {
@@ -92,42 +132,49 @@ func updateStationHandler(ctx irisctx.Context) {
 		ctx.Err()
 		return
 	}
-	u := updateStation(s)
+	u, err := updateStation(s)
+	if err != nil {
+		log.Printf("error updating staion: %v\n", err)
+		ctx.Err()
+		return
+	}
 	ctx.Gzip(true)
 	ctx.JSON(u)
 
 }
 
-func updateStation(update Station) Station {
+func updateStation(update Station) (Station, error) {
 	var existing Station
-	db.Get(&existing, "SELECT StationID, ID, EmptySlots, FreeBikes, Safe FROM stations WHERE StationID=$1", update.StationID)
-
+	err := db.Get(&existing, "SELECT StationID, EmptySlots, FreeBikes, Safe FROM stations WHERE StationID=$1", update.StationID)
+	if err != nil {
+		return Station{}, err
+	}
 	tx := db.MustBegin()
-	if update.FreeBikes != existing.FreeBikes {
-		tx.MustExec("UPDATE stations SET FreeBikes=$1 WHERE StationID=$2", update.FreeBikes, existing.StationID)
-	}
-	if update.EmptySlots != existing.EmptySlots {
-		tx.MustExec("UPDATE stations SET EmptySlots=$1 WHERE StationID=$2", update.EmptySlots, existing.StationID)
-	}
-	if update.Safe != existing.Safe {
-		tx.MustExec("UPDATE stations SET Safe=$1 WHERE StationID=$2", update.Safe, existing.StationID)
-	}
-	if update.Open != existing.Open {
-		tx.MustExec("UPDATE stations SET Open=$1 WHERE StationID=$2", update.Open, existing.StationID)
-	}
+	tx.MustExec("UPDATE stations SET FreeBikes=$1 WHERE StationID=$2", update.FreeBikes, existing.StationID)
+	tx.MustExec("UPDATE stations SET EmptySlots=$1 WHERE StationID=$2", update.EmptySlots, existing.StationID)
+	tx.MustExec("UPDATE stations SET Safe=$1 WHERE StationID=$2", update.Safe, existing.StationID)
+	tx.MustExec("UPDATE stations SET Open=$1 WHERE StationID=$2", update.Open, existing.StationID)
 	tx.MustExec("UPDATE stations SET TimeStamp=$1 WHERE StationID=$2", time.Now().UTC(), existing.StationID)
-	tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return existing, err
+	}
 
 	var updated Station
-	db.Get(&updated, "SELECT StationID, Name, Latitude, Longitude, EmptySlots, FreeBikes, Safe, TimeStamp FROM stations where StationID=$1", existing.StationID)
+	err = db.Get(&updated, "SELECT StationID, Name, Latitude, Longitude, EmptySlots, FreeBikes, Safe, Open, TimeStamp FROM stations where StationID=$1", existing.StationID)
+	if err != nil {
+		return existing, err
+	}
 
 	var reviews = []Review{}
-	db.Select(&reviews, "SELECT Body, Rating, TimeStamp FROM reviews where StationUID=$1", updated.StationID)
+	err = db.Select(&reviews, "SELECT Body, Rating, TimeStamp FROM reviews where StationID=$1", updated.StationID)
+	if err != nil {
+		return existing, err
+	}
 	if len(reviews) != 0 {
 		updated.Reviews = append(updated.Reviews, reviews...)
 	}
 
-	return updated
+	return updated, nil
 
 }
 
