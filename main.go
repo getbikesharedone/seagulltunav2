@@ -22,8 +22,6 @@ func main() {
 	var reBuildDB = flag.Bool("rebuild", false, "rebuild database")
 	flag.Parse()
 
-	// var err error
-
 	if *reBuildDB {
 		if err := buildDatabase(); err != nil {
 			log.Fatalf("build database error: ", err)
@@ -160,25 +158,36 @@ func editReview(ctx irisctx.Context) {
 }
 
 func updateStation(ctx irisctx.Context) {
+
 	defer timeLog(time.Now(), "updateStation")
+	log.Printf("%+#v\n", ctx)
 	id := ctx.Params().Get("id")
 	if id == "" {
-		ctx.Err()
+		ctx.StatusCode(iris.StatusBadRequest)
+		ctx.WriteString("bad station id " + id + " in request url")
 		return
 	}
 
 	var s Station
 	if err := ctx.ReadJSON(&s); err != nil {
-		log.Printf("error parsing json: %v\n", err)
+		log.Printf("\n\nerror parsing json: %v\n\n", err)
 		ctx.StatusCode(iris.StatusBadRequest)
 		ctx.WriteString(err.Error())
 		return
 	}
+	if s.StationID == 0 {
+		ctx.StatusCode(iris.StatusBadRequest)
+		ctx.WriteString("station id not present in request body")
+		return
+	}
+
+	log.Printf("\n\n%+#v\n\n", s)
 
 	u, err := updateStationDB(s)
 	if err != nil {
 		log.Printf("error updating staion: %v\n", err)
-		ctx.Err()
+		ctx.StatusCode(iris.StatusBadRequest)
+		ctx.WriteString("invalid station id")
 		return
 	}
 

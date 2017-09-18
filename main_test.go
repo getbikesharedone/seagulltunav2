@@ -231,23 +231,6 @@ func TestGetStationWithBadInput(t *testing.T) {
 
 }
 
-// func Test_updateStationHandler(t *testing.T) {
-// 	type args struct {
-// 		ctx irisctx.Context
-// 	}
-// 	tests := []struct {
-// 		name string
-// 		args args
-// 	}{
-// 	// TODO: Add test cases.
-// 	}
-// 	for _, tt := range tests {
-// 		t.Run(tt.name, func(t *testing.T) {
-// 			updateStationHandler(tt.args.ctx)
-// 		})
-// 	}
-// }
-
 func TestUpdateStationDB(t *testing.T) {
 
 	tests := []struct {
@@ -324,6 +307,7 @@ func TestUpdateStation(t *testing.T) {
 		content string
 	}{
 		{name: "test1", id: "1", req: Station{StationID: 1, EmptySlots: 1200}, content: "application/json", status: 200},
+		{name: "test1", id: "5364", req: Station{StationID: 5364, EmptySlots: 1200}, content: "application/json", status: 200},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -345,6 +329,7 @@ func TestUpdateStation(t *testing.T) {
 				if got.Safe != tt.req.Safe {
 					t.Errorf("expected: %v but got: %v", tt.req.Safe, got.Safe)
 				}
+				fmt.Println("GOT ", got)
 			}
 
 		})
