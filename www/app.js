@@ -16,7 +16,7 @@ Vue.component('rating', {
     $('.ui.rating')
       .rating()
       ;
-      
+
   }
 })
 
@@ -48,32 +48,67 @@ Vue.component("stations-table", {
   </div></th>
   </tr></thead>
   <tbody>
-    <tr style="width:95%;margin-left:auto; margin-right:auto; margin-top:15px; margin-bottom:15px" class="ui card" v-for="station in stations">
-    <div class="title">
+    <tr style="width:95%;margin-left:auto; margin-right:auto; margin-top:15px; margin-bottom:15px" class="ui card" v-for="(station, index) in stations">
+    <div v-on:click="loadReviews(station.id)" class="title">
     <td>
     
     <span class="header">{{station.name}}</span>
     <div>
     <span>
       Open
-      <i v-bind:class="{ 'check square icon': station.open }"></i>
+      <i v-bind:class="{ 'check square icon': station.open,  'square outline icon': !station.open }"></i>
     </span>
     <span>
     Safe
-    <i v-bind:class="{ 'check square icon': station.safe }"></i>
+    <i v-bind:class="{ 'check square icon': station.safe, 'square outline icon': !station.safe }"></i>
     </span>
     <span>
     Available: <span>{{station.free}}</span>
-    </span></div>
+    </span>
+    
+  </div></span>
     
     
       </td>
       </div>  
   <div class=" content">
-    <p>Insert review</p>
+  <button v-on:click="callMultiple(station, index)" class="ui button orange">
+  Settings
+</button>
+  <p v-if="availableReviews" style="color:black">No reviews available</p>
+    <p v-else style="color:black">{{reviews[0]}}</p>
   </div>
-    
+  <i class="settings icon"></i>
+  <div :class="'idx' + index + ' ui modal'">
+  <i class="close icon"></i>
+  <div class="header">
+    Settings
+  </div>
+  <div style="margin:15px" class="ui form">
+  <div class="field">
+  <div class="ui checkbox slider">
+  <input type="checkbox" name="isOpen" >
+  <label>Open</label>
+</div></div
+<div class="field">
+<div class="ui checkbox slider">
+<input type="checkbox" name="isSafe">
+<label>Safe</label>
+</div></div>
+<div style="margin:15px" class="ui right action input">
+
+<input type="text" :value="station.free">
+<button class="ui orange labeled icon button">
+<i class="bicycle icon"></i>
+Update Available
+</button>
+</div>
+  <div class="actions">
+    <div class="approve ui button">Close</div>
+  </div>
+  </div>
     </tr>
+    
   </tbody>
 </table>
 
@@ -84,7 +119,12 @@ Vue.component("stations-table", {
   data() {
     return {
       stations: [],
-      networksLength: 0
+      networksLength: 0,
+      reviews: [],
+      isSafe: true,
+      isOpen: true,
+      currentStation: {}
+
     };
   },
   created() {
@@ -95,10 +135,66 @@ Vue.component("stations-table", {
       this.networksLength = networks.length;
     });
   },
-  mounted(){
+  mounted() {
     $('.ui.accordion')
-    .accordion()
-  ;
+      .accordion()
+      ;
+    $('.ui.modal')
+      .modal()
+      ;
+  },
+  methods: {
+    callMultiple: function(station, index){
+      this.showModal(index)
+      this.addCheckboxListener(station)
+      this.currentStation = station;
+    },
+    addCheckboxListener: function(station){
+      vm = this;
+      $('.ui.checkbox').checkbox({
+        onChange: function () {
+          $('.ui.checkbox').hasClass('checked') ? this.isSafe = true : this.isSafe = false;
+          axios
+          .post("/api/station/" + station.id, {
+            station
+          })
+          .then(res => {
+            console.log(res)
+            if (res.status == 200) {
+              if (res.data != null) {
+                vm.currentStation.safe = res.data.safe
+              }
+            }
+          })
+          .catch(error => {
+            this.advice = "There was an error: " + error.message;
+          });
+         
+      }});
+    },
+    loadReviews: function (stationId) {
+      axios
+        .get("/api/station/" + stationId)
+        .then(res => {
+          if (res.status == 200) {
+            if (res.data != null) {
+              this.reviews = res.data.reviews;
+              Event.$emit("reviewsLoaded", this.reviews);
+            }
+          }
+        })
+        .catch(error => {
+          this.advice = "There was an error: " + error.message;
+        });
+    },
+    availableReviews: function () {
+      reviews[0] === undefined ? false : true
+    },
+    showModal: function (index) {
+      $('.ui.modal.idx' + index)
+        .modal('show')
+        ;
+    }
   }
 });
 
@@ -250,16 +346,14 @@ const appVue = new Vue({
     });
     Event.$on("stationsLoaded", stations => {
       this.addStationMarkers(map, stations);
-      console.log("Active network", this.activeNetwork)
     });
     Event.$on("clickStation", station => {
-      // debug
-      console.log(station)
-      console.log("Active network", this.activeNetwork)
       console.log(this.showModal)
       // display modal
       this.showModal = true;
 
     });
+    
+
   }
 }); 
