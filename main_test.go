@@ -306,9 +306,15 @@ func TestUpdateStation(t *testing.T) {
 		status  int
 		content string
 	}{
-		{name: "test1", id: "1", req: Station{StationID: 1, EmptySlots: 1200}, content: "application/json", status: 200},
-		{name: "test1", id: "5364", req: Station{StationID: 5364, EmptySlots: 1200}, content: "application/json", status: 200},
+		{name: "first station", id: "1", req: Station{StationID: 1, EmptySlots: 1200}, content: "application/json", status: 200},
+		{name: "random ststion", id: "5364", req: Station{StationID: 5364, EmptySlots: 1200}, content: "application/json", status: 200},
+		{name: "empty id", id: "", req: Station{StationID: 0, EmptySlots: 1200}, content: "", status: 404},
+		{name: "bad id", id: "cats", req: Station{StationID: 0, EmptySlots: 1200}, content: "", status: 404},
+		{name: "miss match request id and station id", id: "1", req: Station{StationID: 2, EmptySlots: 1200}, content: "", status: 400},
+		{name: "missing station id", id: "0", req: Station{EmptySlots: 1200}, content: "", status: 400},
+		{name: "non exist station", id: "1000000", req: Station{StationID: 1000000, EmptySlots: 1200}, content: "", status: 400},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			response := e.POST("/api/station/" + tt.id).WithJSON(&tt.req).Expect().Status(tt.status).ContentType(tt.content).Body().Raw()
