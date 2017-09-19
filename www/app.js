@@ -98,8 +98,8 @@ Vue.component("stations-table", {
 </div>
 <div style="margin:15px" class="ui right action input">
 
-<input type="text" :value="station.free">
-<button class="ui orange labeled icon button">
+<input v-model.number="station.free" type="text">
+<button @click="updateAvailable(station)" class="ui orange labeled icon button">
 <i class="bicycle icon"></i>
 Update Available
 </button>
@@ -128,7 +128,7 @@ Update Available
 
     };
   },
-  props:['station'],
+  props: ['station'],
   created() {
     Event.$on("stationsLoaded", stations => {
       this.stations = stations;
@@ -146,53 +146,72 @@ Update Available
       ;
   },
   methods: {
-    callMultiple: function(station, index){
+    updateAvailable: function (station) {
+      axios
+        .post("/api/station/" + station.id, {
+          id: station.id,
+          free: station.free
+        })
+        .then(res => {
+          if (res.status == 200) {
+            if (res.data != null) {
+              station.free = res.data.free
+            }
+          }
+        })
+        .catch(error => {
+          this.advice = "There was an error: " + error.message;
+        });
+    },
+    callMultiple: function (station, index) {
       this.showModal(index)
       this.addCheckboxListener(station)
       this.currentStation = station;
     },
-    addCheckboxListener: function(station){
+    addCheckboxListener: function (station) {
       vm = this;
       let checked = station.safe ? 'set checked' : 'set unchecked'
       $('.ui.checkbox.isSafe').checkbox(checked).checkbox({
         onChange: function () {
           axios
-          .post("/api/station/" + station.id, {
-            id: station.id,
-            safe: !station.safe
-          })
-          .then(res => {
-            if (res.status == 200) {
-              if (res.data != null) {
-                station.safe = res.data.safe
+            .post("/api/station/" + station.id, {
+              id: station.id,
+              safe: !station.safe
+            })
+            .then(res => {
+              if (res.status == 200) {
+                if (res.data != null) {
+                  station.safe = res.data.safe
+                }
               }
-            }
-          })
-          .catch(error => {
-            this.advice = "There was an error: " + error.message;
-          });
-         
-      }});
+            })
+            .catch(error => {
+              this.advice = "There was an error: " + error.message;
+            });
+
+        }
+      });
       checked = station.open ? 'set checked' : 'set unchecked'
       $('.ui.checkbox.isOpen').checkbox(checked).checkbox({
         onChange: function () {
           axios
-          .post("/api/station/" + station.id, {
-            id: station.id,
-            open: !station.open
-          })
-          .then(res => {
-            if (res.status == 200) {
-              if (res.data != null) {
-                station.open = res.data.open
+            .post("/api/station/" + station.id, {
+              id: station.id,
+              open: !station.open
+            })
+            .then(res => {
+              if (res.status == 200) {
+                if (res.data != null) {
+                  station.open = res.data.open
+                }
               }
-            }
-          })
-          .catch(error => {
-            this.advice = "There was an error: " + error.message;
-          });
-         
-      }});
+            })
+            .catch(error => {
+              this.advice = "There was an error: " + error.message;
+            });
+
+        }
+      });
     },
     loadReviews: function (stationId) {
       axios
@@ -375,7 +394,7 @@ const appVue = new Vue({
       this.showModal = true;
 
     });
-    
+
 
   }
 }); 
