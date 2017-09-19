@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"strconv"
@@ -11,17 +12,43 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/kataras/iris/httptest"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 func TestMain(m *testing.M) {
 	fmt.Println("start init")
-	var err error
-	if db, err = sqlx.Open("sqlite3", "bsn.db"); err != nil {
+
+	if _, err := os.Stat("bsn.db"); os.IsNotExist(err) {
+		log.Panicf("cannot run tests without database, please run with -rebuild")
+	}
+
+	srcDB, err := os.Open("bsn.db")
+	if err != nil {
+		log.Panic(err)
+	}
+	defer srcDB.Close()
+
+	testDB, err := os.Create("test.db")
+	if err != nil {
+		log.Panic(err)
+	}
+
+	if _, err = io.Copy(testDB, srcDB); err != nil {
+		log.Panic(err)
+	}
+	err = testDB.Sync()
+	if err != nil {
+		log.Panic(err)
+
+	}
+
+	if db, err = sqlx.Open("sqlite3", "test.db"); err != nil {
 		log.Fatalf("database error: ", err)
 	}
 
 	exitStatus := m.Run()
 	db.Close()
+	os.Remove("test.db")
 	os.Exit(exitStatus)
 }
 
@@ -98,7 +125,10 @@ func TestGetNetworkDetailConcurrent(t *testing.T) {
 		status  int
 		content string
 	}
-	tests := []Test{{id: 20000, status: httptest.StatusNotFound, content: ""}}
+	tests := []Test{
+		{id: 20000, status: httptest.StatusNotFound, content: ""},
+		{id: 0, status: httptest.StatusNotFound, content: ""},
+	}
 
 	var Networks []Network
 	db.Select(&Networks, "SELECT ID FROM networks")
@@ -142,7 +172,10 @@ func TestGetStation(t *testing.T) {
 		status  int
 		content string
 	}
-	tests := []Test{{id: 50000, status: httptest.StatusNotFound, content: ""}}
+	tests := []Test{
+		{id: 50000, status: httptest.StatusNotFound, content: ""},
+		{id: 0, status: httptest.StatusNotFound, content: ""},
+	}
 
 	var Stations []Station
 	db.Select(&Stations, "SELECT StationID FROM stations")
@@ -168,4 +201,193 @@ func TestGetStation(t *testing.T) {
 		}
 	}
 	wg.Wait()
+}
+
+func TestGetStationWithBadInput(t *testing.T) {
+	testsrv := newSrv()
+
+	e := httptest.New(t, testsrv)
+	type Test struct {
+		request string
+		status  int
+		content string
+	}
+	tests := []Test{
+		{request: "50000", status: httptest.StatusNotFound, content: ""},
+		{request: "0", status: httptest.StatusNotFound, content: ""},
+		{request: "", status: httptest.StatusNotFound, content: ""},
+		{request: "notint", status: httptest.StatusNotFound, content: ""},
+	}
+	for k, tc := range tests {
+
+		response := e.GET("/api/station/" + tc.request).Expect().Status(tc.status).ContentType(tc.content).Body().Raw()
+		if tc.status == httptest.StatusOK {
+			var station Station
+			if err := json.Unmarshal([]byte(response), &station); err != nil {
+				t.Errorf("Failed on %d: %s expected to be decode into station with error: %v\n ", k, tc.request, err)
+			}
+		}
+	}
+
+}
+
+func TestUpdateStationDB(t *testing.T) {
+
+	tests := []struct {
+		name  string
+		input Station
+		want  Station
+	}{
+		{
+			name:  "no change",
+			input: Station{StationID: 1, NetworkID: 1, EmptySlots: 1, FreeBikes: 11, Safe: false, Open: false},
+			want:  Station{StationID: 1, NetworkID: 1, EmptySlots: 1, FreeBikes: 11, Safe: false, Open: false},
+		},
+		{
+			name:  "change Empty Slots",
+			input: Station{StationID: 1, NetworkID: 1, EmptySlots: 2, FreeBikes: 11, Safe: false, Open: false},
+			want:  Station{StationID: 1, NetworkID: 1, EmptySlots: 2, FreeBikes: 11, Safe: false, Open: false},
+		},
+		{
+			name:  "change Free Bikes",
+			input: Station{StationID: 1, NetworkID: 1, EmptySlots: 1, FreeBikes: 12, Safe: false, Open: false},
+			want:  Station{StationID: 1, NetworkID: 1, EmptySlots: 1, FreeBikes: 12, Safe: false, Open: false},
+		},
+		{
+			name:  "change Safe",
+			input: Station{StationID: 1, NetworkID: 1, EmptySlots: 1, FreeBikes: 12, Safe: true, Open: false},
+			want:  Station{StationID: 1, NetworkID: 1, EmptySlots: 1, FreeBikes: 12, Safe: true, Open: false},
+		},
+		{
+			name:  "change Open",
+			input: Station{StationID: 1, NetworkID: 1, EmptySlots: 1, FreeBikes: 12, Safe: true, Open: true},
+			want:  Station{StationID: 1, NetworkID: 1, EmptySlots: 1, FreeBikes: 12, Safe: true, Open: true},
+		},
+		{
+			name:  "change all",
+			input: Station{StationID: 1, NetworkID: 1, EmptySlots: 0, FreeBikes: 0, Safe: false, Open: false},
+			want:  Station{StationID: 1, NetworkID: 1, EmptySlots: 0, FreeBikes: 0, Safe: false, Open: false},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := updateStationDB(tc.input)
+			if err != nil {
+				t.Errorf("got and error that was unexpected :%v", err)
+			}
+			if got.StationID != tc.want.StationID {
+				t.Errorf("updateStation(StationID) = %v, want %v", got.StationID, tc.want.StationID)
+			}
+			if got.EmptySlots != tc.want.EmptySlots {
+				t.Errorf("updateStation(EmptySlots) = %v, want %v", got.EmptySlots, tc.want.EmptySlots)
+			}
+			if got.FreeBikes != tc.want.FreeBikes {
+				t.Errorf("updateStation(FreeBikes) = %v, want %v", got.FreeBikes, tc.want.FreeBikes)
+			}
+			if got.Safe != tc.want.Safe {
+				t.Errorf("updateStation(Safe) = %v, want %v", got.Safe, tc.want.Safe)
+			}
+			if got.Open != tc.want.Open {
+				t.Errorf("updateStation(Open) = %v, want %v", got.Open, tc.want.Open)
+			}
+		})
+	}
+}
+
+func TestUpdateStation(t *testing.T) {
+	testsrv := newSrv()
+
+	e := httptest.New(t, testsrv)
+	tests := []struct {
+		name    string
+		id      string
+		req     Station
+		status  int
+		content string
+	}{
+		{name: "test1", id: "1", req: Station{StationID: 1, EmptySlots: 1200}, content: "application/json", status: 200},
+		{name: "test1", id: "5364", req: Station{StationID: 5364, EmptySlots: 1200}, content: "application/json", status: 200},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			response := e.POST("/api/station/" + tt.id).WithJSON(&tt.req).Expect().Status(tt.status).ContentType(tt.content).Body().Raw()
+			if tt.status == 200 {
+				var got Station
+				if err := json.Unmarshal([]byte(response), &got); err != nil {
+					log.Println(err)
+				}
+				if got.EmptySlots != tt.req.EmptySlots {
+					t.Errorf("expected: %v but got: %v", tt.req.EmptySlots, got.EmptySlots)
+				}
+				if got.FreeBikes != tt.req.FreeBikes {
+					t.Errorf("expected: %v but got: %v", tt.req.FreeBikes, got.FreeBikes)
+				}
+				if got.Open != tt.req.Open {
+					t.Errorf("expected: %v but got: %v", tt.req.Open, got.Open)
+				}
+				if got.Safe != tt.req.Safe {
+					t.Errorf("expected: %v but got: %v", tt.req.Safe, got.Safe)
+				}
+				fmt.Println("GOT ", got)
+			}
+
+		})
+	}
+}
+
+func TestEditRewview(t *testing.T) {
+	testsrv := newSrv()
+
+	e := httptest.New(t, testsrv)
+	tests := []struct {
+		name    string
+		id      string
+		req     Review
+		content string
+		status  int
+	}{
+		{
+			name:    "normal",
+			id:      "1",
+			req:     Review{ReviewID: 1, Body: "some body text", Rating: 12},
+			content: "application/json",
+			status:  200,
+		},
+		{
+			name:    "body to long",
+			id:      "1",
+			req:     Review{ReviewID: 1, Body: "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has", Rating: 12},
+			content: "",
+			status:  400,
+		},
+		{
+			name:    "wrong id",
+			id:      "100000000000",
+			req:     Review{ReviewID: 1000000000, Body: "It has", Rating: 12},
+			content: "",
+			status:  404,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			response := e.PUT("/api/review/" + tt.id).WithJSON(&tt.req).Expect().Status(tt.status).ContentType(tt.content).Body().Raw()
+			if tt.status == 200 {
+				var got Review
+				if err := json.Unmarshal([]byte(response), &got); err != nil {
+					log.Println(err)
+				}
+				if got.ReviewID != tt.req.ReviewID {
+					t.Errorf("expected: %v but got: %v", tt.req.ReviewID, got.ReviewID)
+				}
+				if got.Body != tt.req.Body {
+					t.Errorf("expected: %v but got: %v", tt.req.Body, got.Body)
+				}
+				if got.Rating != tt.req.Rating {
+					t.Errorf("expected: %v but got: %v", tt.req.Rating, got.Rating)
+				}
+			}
+
+		})
+	}
 }

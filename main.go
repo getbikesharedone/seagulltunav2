@@ -5,6 +5,7 @@ package main
 import (
 	"flag"
 	"log"
+	"strconv"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -20,8 +21,6 @@ func main() {
 	var err error
 	var reBuildDB = flag.Bool("rebuild", false, "rebuild database")
 	flag.Parse()
-
-	// var err error
 
 	if *reBuildDB {
 		if err := buildDatabase(); err != nil {
@@ -49,16 +48,24 @@ func newSrv() *iris.Application {
 	srv.StaticWeb("/", "www/")
 	srv.Get("/api/network/{id:string}", getDetail)
 	srv.Get("/api/network", getNetworkList)
-	srv.Get("/api/station/{id:string}", getStation)
-	srv.Post("/api/station/{id:string}", updateStationHandler)
-	srv.Post("/api/station/{id:string}/review", reviewStation)
+	srv.Get("/api/review/{id:int}", getReview)
+	srv.Put("/api/review/{id:int}", editReview)
+	srv.Get("/api/station/{id:int}", getStation)
+	srv.Post("/api/station/{id:int}", updateStation)
+	srv.Post("/api/station/{id:int}/review", reviewStation)
 	return srv
 }
 
 func getStation(ctx irisctx.Context) {
 	defer timeLog(time.Now(), "getStation")
-	id := ctx.Params().Get("id")
-	if id == "" {
+	idStr := ctx.Params().Get("id")
+
+	if idStr == "" {
+		ctx.NotFound()
+		return
+	}
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
 		ctx.NotFound()
 		return
 	}
@@ -80,54 +87,147 @@ func getStation(ctx irisctx.Context) {
 
 }
 
-func updateStationHandler(ctx irisctx.Context) {
-	id := ctx.Params().Get("id")
-	if id == "" {
-		ctx.Err()
-	}
-	var s Station
-	err := ctx.ReadForm(&s)
-	if err != nil {
-		log.Println(err)
-		ctx.Err()
+func getReview(ctx irisctx.Context) {
+	defer timeLog(time.Now(), "getReview")
+	idStr := ctx.Params().Get("id")
+
+	if idStr == "" {
+		ctx.NotFound()
 		return
 	}
-	u := updateStation(s)
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		ctx.NotFound()
+		return
+	}
+	var review Review
+	err = db.Get(&review, "SELECT ReviewID, StationID, TimeStamp, Body, Rating, FROM reviews where ReviewID=$1", id)
+	if err != nil {
+		log.Println(err)
+		ctx.NotFound()
+		return
+	}
+
+	ctx.Gzip(true)
+	ctx.JSON(review)
+
+}
+
+func editReview(ctx irisctx.Context) {
+	defer timeLog(time.Now(), "editReview")
+	var review Review
+	if err := ctx.ReadJSON(&review); err != nil {
+		log.Printf("error parsing json: %v\n", err)
+		ctx.StatusCode(iris.StatusBadRequest)
+		ctx.WriteString(err.Error())
+		return
+	}
+	if len(review.Body) > 250 {
+		ctx.StatusCode(iris.StatusBadRequest)
+		ctx.WriteString("body greater than 250 characters")
+		return
+	}
+	var existing Review
+	if err := db.Get(&existing, "Select ReviewID from reviews WHERE ReviewID=$1", review.ReviewID); err != nil {
+		log.Printf("review id: %d does not exist: %v\n", review.ReviewID, err)
+		ctx.StatusCode(iris.StatusNotFound)
+		ctx.WriteString("review does not exist")
+		return
+	}
+	review.TimeStamp = time.Now().UTC()
+	tx := db.MustBegin()
+	tx.MustExec("UPDATE reviews SET Body=$1, Rating=$2, TimeStamp=$3 WHERE ReviewID=$4",
+		review.Body,
+		review.Rating,
+		review.TimeStamp,
+		review.ReviewID)
+	if err := tx.Commit(); err != nil {
+		ctx.StatusCode(iris.StatusBadRequest)
+		ctx.WriteString(err.Error())
+		return
+	}
+	var updated Review
+	if err := db.Get(&updated, "Select ReviewID, StationID, Body, Rating, TimeStamp from reviews WHERE ReviewID=$1", review.ReviewID); err != nil {
+		log.Printf("review id: %d does not exist: %v\n", review.ReviewID, err)
+		ctx.StatusCode(iris.StatusNotFound)
+		ctx.WriteString("review does not exist")
+		return
+	}
+	ctx.Gzip(true)
+	ctx.JSON(updated)
+}
+
+func updateStation(ctx irisctx.Context) {
+
+	defer timeLog(time.Now(), "updateStation")
+	log.Printf("%+#v\n", ctx)
+	id := ctx.Params().Get("id")
+	if id == "" {
+		ctx.StatusCode(iris.StatusBadRequest)
+		ctx.WriteString("bad station id " + id + " in request url")
+		return
+	}
+
+	var s Station
+	if err := ctx.ReadJSON(&s); err != nil {
+		log.Printf("\n\nerror parsing json: %v\n\n", err)
+		ctx.StatusCode(iris.StatusBadRequest)
+		ctx.WriteString(err.Error())
+		return
+	}
+	if s.StationID == 0 {
+		ctx.StatusCode(iris.StatusBadRequest)
+		ctx.WriteString("station id not present in request body")
+		return
+	}
+
+	log.Printf("\n\n%+#v\n\n", s)
+
+	u, err := updateStationDB(s)
+	if err != nil {
+		log.Printf("error updating staion: %v\n", err)
+		ctx.StatusCode(iris.StatusBadRequest)
+		ctx.WriteString("invalid station id")
+		return
+	}
+
 	ctx.Gzip(true)
 	ctx.JSON(u)
 
 }
 
-func updateStation(update Station) Station {
+func updateStationDB(update Station) (Station, error) {
 	var existing Station
-	db.Get(&existing, "SELECT StationID, ID, EmptySlots, FreeBikes, Safe FROM stations WHERE StationID=$1", update.StationID)
-
+	err := db.Get(&existing, "SELECT StationID, EmptySlots, FreeBikes, Safe FROM stations WHERE StationID=$1", update.StationID)
+	if err != nil {
+		return Station{}, err
+	}
 	tx := db.MustBegin()
-	if update.FreeBikes != existing.FreeBikes {
-		tx.MustExec("UPDATE stations SET FreeBikes=$1 WHERE StationID=$2", update.FreeBikes, existing.StationID)
-	}
-	if update.EmptySlots != existing.EmptySlots {
-		tx.MustExec("UPDATE stations SET EmptySlots=$1 WHERE StationID=$2", update.EmptySlots, existing.StationID)
-	}
-	if update.Safe != existing.Safe {
-		tx.MustExec("UPDATE stations SET Safe=$1 WHERE StationID=$2", update.Safe, existing.StationID)
-	}
-	if update.Open != existing.Open {
-		tx.MustExec("UPDATE stations SET Open=$1 WHERE StationID=$2", update.Open, existing.StationID)
-	}
+	tx.MustExec("UPDATE stations SET FreeBikes=$1 WHERE StationID=$2", update.FreeBikes, existing.StationID)
+	tx.MustExec("UPDATE stations SET EmptySlots=$1 WHERE StationID=$2", update.EmptySlots, existing.StationID)
+	tx.MustExec("UPDATE stations SET Safe=$1 WHERE StationID=$2", update.Safe, existing.StationID)
+	tx.MustExec("UPDATE stations SET Open=$1 WHERE StationID=$2", update.Open, existing.StationID)
 	tx.MustExec("UPDATE stations SET TimeStamp=$1 WHERE StationID=$2", time.Now().UTC(), existing.StationID)
-	tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return existing, err
+	}
 
 	var updated Station
-	db.Get(&updated, "SELECT StationID, Name, Latitude, Longitude, EmptySlots, FreeBikes, Safe, TimeStamp FROM stations where StationID=$1", existing.StationID)
+	err = db.Get(&updated, "SELECT StationID, Name, Latitude, Longitude, EmptySlots, FreeBikes, Safe, Open, TimeStamp FROM stations where StationID=$1", existing.StationID)
+	if err != nil {
+		return existing, err
+	}
 
 	var reviews = []Review{}
-	db.Select(&reviews, "SELECT Body, Rating, TimeStamp FROM reviews where StationUID=$1", updated.StationID)
+	err = db.Select(&reviews, "SELECT Body, Rating, TimeStamp FROM reviews where StationID=$1", updated.StationID)
+	if err != nil {
+		return existing, err
+	}
 	if len(reviews) != 0 {
 		updated.Reviews = append(updated.Reviews, reviews...)
 	}
 
-	return updated
+	return updated, nil
 
 }
 
@@ -148,10 +248,10 @@ func reviewStation(ctx irisctx.Context) {
 	}
 	review.TimeStamp = time.Now().UTC()
 	var station Station
-	db.Get(&station, "SELECT UID FROM stations WHERE StationID=$1", id)
+	db.Get(&station, "SELECT StationID FROM stations WHERE StationID=$1", id)
 	review.StationID = station.StationID
 	tx := db.MustBegin()
-	tx.MustExec("INSERT INTO reviews (StationUID,TimeStamp,Body,Rating) VALUES ($1, $2, $3, $4)",
+	tx.MustExec("INSERT INTO reviews (StationID,TimeStamp,Body,Rating) VALUES ($1, $2, $3, $4)",
 		review.StationID,
 		review.TimeStamp,
 		review.Body,
