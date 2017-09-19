@@ -24,7 +24,7 @@ func main() {
 
 	if *reBuildDB {
 		if err := buildDatabase(); err != nil {
-			log.Fatalf("build database error: ", err)
+			log.Fatalf("build database error: %v", err)
 		}
 		if err := buildNetworkExtents(); err != nil {
 			log.Fatalf("build database extents: %v", err)
@@ -32,7 +32,7 @@ func main() {
 	}
 
 	if db, err = sqlx.Open("sqlite3", "bsn.db"); err != nil {
-		log.Fatalf("database error: ", err)
+		log.Fatalf("database error: %v", err)
 	}
 
 	srv := newSrv()
@@ -61,23 +61,30 @@ func getStation(ctx irisctx.Context) {
 	idStr := ctx.Params().Get("id")
 
 	if idStr == "" {
-		ctx.NotFound()
+		log.Printf("empty station id in requests url")
+		ctx.StatusCode(iris.StatusBadRequest)
+		ctx.WriteString("empty station id in requests url")
 		return
 	}
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		ctx.NotFound()
+		log.Printf("bad id: %v does not exist: %v\n", idStr, err)
+		ctx.StatusCode(iris.StatusBadRequest)
+		ctx.WriteString("bad station id in requests url")
 		return
 	}
 	var stations Station
-	db.Get(&stations, "SELECT StationID, Name, Latitude, Longitude, EmptySlots, FreeBikes, Safe, Open, TimeStamp FROM stations where StationID=$1", id)
-
-	if stations.StationID == 0 {
-		ctx.NotFound()
+	if err := db.Get(&stations, "SELECT StationID, Name, Latitude, Longitude, EmptySlots, FreeBikes, Safe, Open, TimeStamp FROM stations where StationID=$1", id); err != nil {
+		log.Printf("station not found: %v\n", err)
+		ctx.StatusCode(iris.StatusNotFound)
+		ctx.WriteString("station with id " + idStr + " does not exist")
 		return
 	}
+
 	var reviews = []Review{}
-	db.Select(&reviews, "SELECT ReviewID, Body, Rating, TimeStamp FROM reviews where StationID=$1", stations.StationID)
+	if err := db.Select(&reviews, "SELECT ReviewID, User, Body, Rating, TimeStamp FROM reviews where StationID=$1", stations.StationID); err != nil {
+		log.Printf("error retriving reviews for station %v :%v\n", stations.StationID, err)
+	}
 	if len(reviews) != 0 {
 		stations.Reviews = append(stations.Reviews, reviews...)
 	}
@@ -92,16 +99,21 @@ func getReview(ctx irisctx.Context) {
 	idStr := ctx.Params().Get("id")
 
 	if idStr == "" {
-		ctx.NotFound()
+		log.Printf("empty review id in requests url")
+		ctx.StatusCode(iris.StatusBadRequest)
+		ctx.WriteString("bad review id in requests url")
 		return
 	}
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		ctx.NotFound()
+		log.Printf("bad id: %v does not exist: %v\n", idStr, err)
+		ctx.StatusCode(iris.StatusBadRequest)
+		ctx.WriteString("bad review id in requests url")
 		return
 	}
+
 	var review Review
-	err = db.Get(&review, "SELECT ReviewID, StationID, TimeStamp, Body, Rating, FROM reviews where ReviewID=$1", id)
+	err = db.Get(&review, "SELECT ReviewID, User, StationID, TimeStamp, Body, Rating, FROM reviews where ReviewID=$1", id)
 	if err != nil {
 		log.Println(err)
 		ctx.NotFound()
@@ -147,7 +159,7 @@ func editReview(ctx irisctx.Context) {
 		return
 	}
 	var updated Review
-	if err := db.Get(&updated, "Select ReviewID, StationID, Body, Rating, TimeStamp from reviews WHERE ReviewID=$1", review.ReviewID); err != nil {
+	if err := db.Get(&updated, "Select ReviewID, StationID, User, Body, Rating, TimeStamp from reviews WHERE ReviewID=$1", review.ReviewID); err != nil {
 		log.Printf("review id: %d does not exist: %v\n", review.ReviewID, err)
 		ctx.StatusCode(iris.StatusNotFound)
 		ctx.WriteString("review does not exist")
@@ -158,9 +170,7 @@ func editReview(ctx irisctx.Context) {
 }
 
 func updateStation(ctx irisctx.Context) {
-
 	defer timeLog(time.Now(), "updateStation")
-	log.Printf("%+#v\n", ctx)
 	id := ctx.Params().Get("id")
 	if id == "" {
 		ctx.StatusCode(iris.StatusBadRequest)
@@ -180,9 +190,6 @@ func updateStation(ctx irisctx.Context) {
 		ctx.WriteString("station id not present in request body")
 		return
 	}
-
-	log.Printf("\n\n%+#v\n\n", s)
-
 	u, err := updateStationDB(s)
 	if err != nil {
 		log.Printf("error updating staion: %v\n", err)
@@ -219,7 +226,7 @@ func updateStationDB(update Station) (Station, error) {
 	}
 
 	var reviews = []Review{}
-	err = db.Select(&reviews, "SELECT Body, Rating, TimeStamp FROM reviews where StationID=$1", updated.StationID)
+	err = db.Select(&reviews, "SELECT User, Body, Rating, TimeStamp FROM reviews where StationID=$1", updated.StationID)
 	if err != nil {
 		return existing, err
 	}
@@ -233,7 +240,6 @@ func updateStationDB(update Station) (Station, error) {
 
 func reviewStation(ctx irisctx.Context) {
 	defer timeLog(time.Now(), "reviewStation")
-	log.Printf("%+#v\n", ctx)
 	id := ctx.Params().Get("id")
 	if id == "" {
 		ctx.StatusCode(iris.StatusBadRequest)
@@ -258,42 +264,63 @@ func reviewStation(ctx irisctx.Context) {
 	}
 	review.StationID = station.StationID
 	tx := db.MustBegin()
-	tx.MustExec("INSERT INTO reviews (StationID,TimeStamp,Body,Rating) VALUES ($1, $2, $3, $4)",
+	tx.MustExec("INSERT INTO reviews (StationID,TimeStamp,Body,Rating,User) VALUES ($1, $2, $3, $4, $5)",
 		review.StationID,
 		review.TimeStamp,
 		review.Body,
-		review.Rating)
+		review.Rating,
+		review.User)
 	if err := tx.Commit(); err != nil {
 		log.Printf("\n\nerror creating review: %v\n\n", err)
 		ctx.StatusCode(iris.StatusBadRequest)
 		ctx.WriteString(err.Error())
 		return
 	}
+	var newReview Review
+	if err := db.Get(&newReview, "Select StationID,TimeStamp,Body,Rating,User FROM reviews WHERE TimeStamp=$1", review.TimeStamp); err != nil {
+		log.Printf("\n\nerror retriving new review: %v\n\n", err)
+		ctx.StatusCode(iris.StatusBadRequest)
+		ctx.WriteString(err.Error())
+		return
+	}
+
 	ctx.Gzip(true)
-	ctx.JSON(review)
+	ctx.JSON(newReview)
 	return
 }
 
 func getDetail(ctx irisctx.Context) {
 	defer timeLog(time.Now(), "getDetail")
-	id := ctx.Params().Get("id")
-	if id == "" {
-		ctx.NotFound()
+	idStr := ctx.Params().Get("id")
+
+	if idStr == "" {
+		log.Printf("empty network id in requests url")
+		ctx.StatusCode(iris.StatusBadRequest)
+		ctx.WriteString("bad network id in requests url")
 		return
 	}
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		log.Printf("bad id: %v does not exist: %v\n", idStr, err)
+		ctx.StatusCode(iris.StatusBadRequest)
+		ctx.WriteString("bad network id in requests url")
+		return
+	}
+
 	var net Network
-	db.Get(&net, "SELECT NetworkID, Company, Name, City, Country, Latitude, Longitude, HSpan, VSpan, CenterLat, CenterLng FROM networks WHERE NetworkID=$1", id)
-	if net.NetworkID == 0 {
-		log.Printf("network %v does not exist", id)
-		ctx.NotFound()
+	if err := db.Get(&net, "SELECT NetworkID, Company, Name, City, Country, Latitude, Longitude, HSpan, VSpan, CenterLat, CenterLng FROM networks WHERE NetworkID=$1", id); err != nil {
+		log.Printf("err retriving network with id: %v : %v\n", id, err)
+		ctx.StatusCode(iris.StatusNotFound)
+		ctx.WriteString("err retriving network")
 		return
 	}
 	var stations = []Station{}
-	db.Select(&stations, "SELECT StationID, Name, Latitude, Longitude, EmptySlots, FreeBikes, Safe, Open, TimeStamp FROM stations where NetworkID=$1", id)
-	if len(stations) == 0 {
-		log.Printf("no stations in network %v", id)
+	if err := db.Select(&stations, "SELECT StationID, Name, Latitude, Longitude, EmptySlots, FreeBikes, Safe, Open, TimeStamp FROM stations where NetworkID=$1", id); err != nil {
+		log.Printf("err retriving stations for network with id: %v : %v\n", id, err)
 	}
-	net.Stations = append(net.Stations, stations...)
+	if len(stations) != 0 {
+		net.Stations = append(net.Stations, stations...)
+	}
 
 	ctx.Gzip(true)
 	ctx.JSON(net)
@@ -304,12 +331,12 @@ func getNetworkList(ctx irisctx.Context) {
 	defer timeLog(time.Now(), "getNetworkList")
 
 	var NetworkList []Network
-	db.Select(&NetworkList, "SELECT Company, NetworkID, Name, City, Country, Latitude, Longitude, HSpan, VSpan, CenterLat, CenterLng FROM networks")
-	if len(NetworkList) == 0 {
-		ctx.NotFound()
+	if err := db.Select(&NetworkList, "SELECT Company, NetworkID, Name, City, Country, Latitude, Longitude, HSpan, VSpan, CenterLat, CenterLng FROM networks"); err != nil {
+		log.Printf("err retriving network list from database: %v\n", err)
+		ctx.StatusCode(iris.StatusNotFound)
+		ctx.WriteString("err retriving network list")
 		return
 	}
-	log.Println(len(NetworkList))
 
 	ctx.Gzip(true)
 	ctx.JSON(NetworkList)
