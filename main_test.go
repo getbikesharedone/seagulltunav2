@@ -43,7 +43,7 @@ func TestMain(m *testing.M) {
 	}
 
 	if db, err = sqlx.Open("sqlite3", "test.db"); err != nil {
-		log.Fatalf("database error: ", err)
+		log.Fatalf("database error: %v", err)
 	}
 
 	exitStatus := m.Run()
@@ -104,11 +104,11 @@ func TestGetNetworkDetail(t *testing.T) {
 		if test.status == httptest.StatusOK {
 			var network Network
 			if err := json.Unmarshal([]byte(rawResponse), &network); err != nil {
-				t.Errorf("Failed on %d: %s expected to be decode into Network with error: %v\n ", k, test.id, err)
+				t.Errorf("Failed on %v: %v expected to be decode into Network with error: %v\n ", k, test.id, err)
 			}
 
 			if network.NetworkID != test.id {
-				t.Errorf("expected response to be %s but got %s", network.NetworkID, test.id)
+				t.Errorf("expected response to be %v but got %v", network.NetworkID, test.id)
 			}
 		}
 
@@ -139,7 +139,7 @@ func TestGetNetworkDetailConcurrent(t *testing.T) {
 	var wg sync.WaitGroup
 	for k, testcase := range tests {
 		// throw all the requests at once at server
-		if k > 50 {
+		if k > 5 {
 			break
 		}
 		wg.Add(1)
@@ -149,11 +149,11 @@ func TestGetNetworkDetailConcurrent(t *testing.T) {
 			if tc.status == httptest.StatusOK {
 				var network Network
 				if err := json.Unmarshal([]byte(rawResponse), &network); err != nil {
-					t.Errorf("Failed on %d: %s expected to be decode into Network with error: %v\n ", tn, tc.id, err)
+					t.Errorf("Failed on %v: %v expected to be decode into Network with error: %v\n ", tn, tc.id, err)
 				}
 
 				if network.NetworkID != tc.id {
-					t.Errorf("expected response to be %s but got %s", network.NetworkID, tc.id)
+					t.Errorf("expected response to be %v but got %v", network.NetworkID, tc.id)
 				}
 			}
 			wg.Done()
@@ -185,18 +185,18 @@ func TestGetStation(t *testing.T) {
 	}
 	var wg sync.WaitGroup
 	for k, tc := range tests {
-		if k > 1000 {
+		if k > 100 {
 			break
 		}
 		rawResponse := e.GET("/api/station/" + strconv.Itoa(tc.id)).Expect().Status(tc.status).ContentType(tc.content).Body().Raw()
 		if tc.status == httptest.StatusOK {
 			var station Station
 			if err := json.Unmarshal([]byte(rawResponse), &station); err != nil {
-				t.Errorf("Failed on %d: %s expected to be decode into station with error: %v\n ", k, tc.id, err)
+				t.Errorf("Failed on %v: %v expected to be decode into station with error: %v\n ", k, tc.id, err)
 			}
 
 			if station.StationID != tc.id {
-				t.Errorf("expected response to be %d but got %d", station.StationID, tc.id)
+				t.Errorf("expected response to be %v but got %v", station.StationID, tc.id)
 			}
 		}
 	}
@@ -330,6 +330,44 @@ func TestUpdateStation(t *testing.T) {
 					t.Errorf("expected: %v but got: %v", tt.req.Safe, got.Safe)
 				}
 				fmt.Println("GOT ", got)
+			}
+
+		})
+	}
+}
+
+func TestCreateReview(t *testing.T) {
+	testsrv := newSrv()
+
+	e := httptest.New(t, testsrv)
+	tests := []struct {
+		name    string
+		id      string
+		req     Review
+		status  int
+		content string
+	}{
+		{name: "test1", id: "1", req: Review{Body: "Some Review", User: "anon", Rating: 10}, content: "application/json", status: 200},
+		// {name: "test1", id: "5364", req: Station{StationID: 5364, EmptySlots: 1200}, content: "application/json", status: 200},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			response := e.POST("/api/station/" + tt.id + "/review").WithJSON(&tt.req).Expect().Status(tt.status).ContentType(tt.content).Body().Raw()
+			if tt.status == 200 {
+				var got Review
+				if err := json.Unmarshal([]byte(response), &got); err != nil {
+					log.Println(err)
+				}
+				if got.Body != tt.req.Body {
+					t.Errorf("expected: %v but got: %v", tt.req.Body, got.Body)
+				}
+				if got.User != tt.req.User {
+					t.Errorf("expected: %v but got: %v", tt.req.User, got.User)
+				}
+				if got.Rating != tt.req.Rating {
+					t.Errorf("expected: %v but got: %v", tt.req.Rating, got.Rating)
+				}
+				fmt.Printf("%+v\n ", got)
 			}
 
 		})
