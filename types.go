@@ -5,6 +5,8 @@ import "time"
 type Review struct {
 	ReviewID  int       `db:"ReviewID" json:"id"`
 	StationID int       `db:"StationID" json:"stationuid"`
+	UserID    int       `db:"UserID" json:"-"`
+	User      string    `db:"User" json:"user"`
 	TimeStamp time.Time `db:"TimeStamp" json:"time"`
 	Body      string    `db:"Body" json:"body"`
 	Rating    int       `db:"Rating" json:"rating"`
@@ -53,10 +55,10 @@ CREATE TABLE networks (
 	GbfsHref    VARCHAR(250),
 	LicenseName VARCHAR(250),
 	LicenseURL  VARCHAR(250),
-	HSpan		INTEGER,
-	VSpan		INTEGER,
-	CenterLat	DOUBLE,
-	CenterLng	DOUBLE
+	HSpan		INTEGER DEFAULT 0,
+	VSpan		INTEGER DEFAULT 0,
+	CenterLat	DOUBLE DEFAULT 0,
+	CenterLng	DOUBLE DEFAULT 0
 );
 DROP TABLE IF EXISTS stations;
 CREATE TABLE stations (
@@ -76,6 +78,8 @@ DROP TABLE IF EXISTS reviews;
 CREATE TABLE reviews (
 	ReviewID    INTEGER PRIMARY KEY,
 	StationID	INTEGER,
+	UserID		INTEGER,
+	User		VARCHAR(80)  DEFAULT '',
 	Body        VARCHAR(250) DEFAULT '',
 	Rating      INTEGER,
 	TimeStamp   DATETIME
