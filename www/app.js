@@ -16,7 +16,7 @@ Vue.component('rating', {
     $('.ui.rating')
       .rating()
       ;
-      
+
   }
 })
 
@@ -48,32 +48,68 @@ Vue.component("stations-table", {
   </div></th>
   </tr></thead>
   <tbody>
-    <tr style="width:95%;margin-left:auto; margin-right:auto; margin-top:15px; margin-bottom:15px" class="ui card" v-for="station in stations">
-    <div class="title">
+    <tr v-bind:key="station.id" v-bind:station="station" style="width:95%;margin-left:auto; margin-right:auto; margin-top:15px; margin-bottom:15px" class="ui card" v-for="(station, index) in stations">
+    <div v-on:click="loadReviews(station.id)" class="title">
     <td>
     
     <span class="header">{{station.name}}</span>
     <div>
     <span>
       Open
-      <i v-bind:class="{ 'check square icon': station.open }"></i>
+      <i v-bind:class="{ 'check square icon': station.open,  'square outline icon': !station.open }"></i>
     </span>
     <span>
     Safe
-    <i v-bind:class="{ 'check square icon': station.safe }"></i>
+    <i v-bind:class="{ 'check square icon': station.safe, 'square outline icon': !station.safe }"></i>
     </span>
     <span>
     Available: <span>{{station.free}}</span>
-    </span></div>
+    </span>
+    
+  </div></span>
     
     
       </td>
       </div>  
   <div class=" content">
-    <p>Insert review</p>
+  <button v-on:click="callMultiple(station, index)" class="ui button orange">
+  Settings
+</button>
+  <p v-if="availableReviews" style="color:black">No reviews available</p>
+    <p v-else style="color:black">{{reviews[0]}}</p>
   </div>
-    
+  <i class="settings icon"></i>
+  <div :class="'idx' + index + ' ui modal'">
+  <i class="close icon"></i>
+  <div class="header">
+    Settings
+  </div>
+  <div style="margin:15px" class="ui form">
+  <div class="field">
+  <div class="ui checkbox slider isOpen">
+  <input type="checkbox">
+  <label>Open</label>
+</div></div
+<div class="field">
+<div class="ui checkbox slider isSafe">
+<input type="checkbox">
+<label>Safe</label>
+</div>
+</div>
+<div style="margin:15px" class="ui right action input">
+
+<input v-model.number="station.free" type="text">
+<button @click="updateAvailable(station)" class="ui orange labeled icon button">
+<i class="bicycle icon"></i>
+Update Available
+</button>
+</div>
+  <div class="actions">
+    <div class="approve ui button">Close</div>
+  </div>
+  </div>
     </tr>
+    
   </tbody>
 </table>
 
@@ -84,9 +120,15 @@ Vue.component("stations-table", {
   data() {
     return {
       stations: [],
-      networksLength: 0
+      networksLength: 0,
+      reviews: [],
+      isSafe: true,
+      isOpen: true,
+      currentStation: {}
+
     };
   },
+  props: ['station'],
   created() {
     Event.$on("stationsLoaded", stations => {
       this.stations = stations;
@@ -95,10 +137,105 @@ Vue.component("stations-table", {
       this.networksLength = networks.length;
     });
   },
-  mounted(){
+  mounted() {
     $('.ui.accordion')
-    .accordion()
-  ;
+      .accordion()
+      ;
+    $('.ui.modal')
+      .modal()
+      ;
+  },
+  methods: {
+    updateAvailable: function (station) {
+      axios
+        .post("/api/station/" + station.id, {
+          id: station.id,
+          free: station.free
+        })
+        .then(res => {
+          if (res.status == 200) {
+            if (res.data != null) {
+              station.free = res.data.free
+            }
+          }
+        })
+        .catch(error => {
+          this.advice = "There was an error: " + error.message;
+        });
+    },
+    callMultiple: function (station, index) {
+      this.showModal(index)
+      this.addCheckboxListener(station)
+      this.currentStation = station;
+    },
+    addCheckboxListener: function (station) {
+      vm = this;
+      let checked = station.safe ? 'set checked' : 'set unchecked'
+      $('.ui.checkbox.isSafe').checkbox(checked).checkbox({
+        onChange: function () {
+          axios
+            .post("/api/station/" + station.id, {
+              id: station.id,
+              safe: !station.safe
+            })
+            .then(res => {
+              if (res.status == 200) {
+                if (res.data != null) {
+                  station.safe = res.data.safe
+                }
+              }
+            })
+            .catch(error => {
+              this.advice = "There was an error: " + error.message;
+            });
+
+        }
+      });
+      checked = station.open ? 'set checked' : 'set unchecked'
+      $('.ui.checkbox.isOpen').checkbox(checked).checkbox({
+        onChange: function () {
+          axios
+            .post("/api/station/" + station.id, {
+              id: station.id,
+              open: !station.open
+            })
+            .then(res => {
+              if (res.status == 200) {
+                if (res.data != null) {
+                  station.open = res.data.open
+                }
+              }
+            })
+            .catch(error => {
+              this.advice = "There was an error: " + error.message;
+            });
+
+        }
+      });
+    },
+    loadReviews: function (stationId) {
+      axios
+        .get("/api/station/" + stationId)
+        .then(res => {
+          if (res.status == 200) {
+            if (res.data != null) {
+              this.reviews = res.data.reviews;
+              Event.$emit("reviewsLoaded", this.reviews);
+            }
+          }
+        })
+        .catch(error => {
+          this.advice = "There was an error: " + error.message;
+        });
+    },
+    availableReviews: function () {
+      reviews[0] === undefined ? false : true
+    },
+    showModal: function (index) {
+      $('.ui.modal.idx' + index)
+        .modal('show')
+        ;
+    }
   }
 });
 
@@ -250,16 +387,14 @@ const appVue = new Vue({
     });
     Event.$on("stationsLoaded", stations => {
       this.addStationMarkers(map, stations);
-      console.log("Active network", this.activeNetwork)
     });
     Event.$on("clickStation", station => {
-      // debug
-      console.log(station)
-      console.log("Active network", this.activeNetwork)
       console.log(this.showModal)
       // display modal
       this.showModal = true;
 
     });
+
+
   }
 }); 

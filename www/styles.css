@@ -1,10 +1,7 @@
 @media only screen and (max-width: 767px) {
-    #map{
-        height:45%
-    }
-    #stations-table {
-        height: 55%;
-    }
+     #map{
+        height:40%
+    } 
     .mobile.hidden,
     .tablet.only,
     .small.monitor.only,
