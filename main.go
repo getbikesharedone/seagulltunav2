@@ -236,19 +236,26 @@ func reviewStation(ctx irisctx.Context) {
 	log.Printf("%+#v\n", ctx)
 	id := ctx.Params().Get("id")
 	if id == "" {
-		ctx.Err()
+		ctx.StatusCode(iris.StatusBadRequest)
+		ctx.WriteString("bad id " + id + "in request url")
 		return
 	}
 	var review Review
-	err := ctx.ReadForm(&review)
+	err := ctx.ReadJSON(&review)
 	if err != nil {
-		log.Println(err)
-		ctx.Err()
+		log.Printf("\n\nerror parsing json: %v\n\n", err)
+		ctx.StatusCode(iris.StatusBadRequest)
+		ctx.WriteString(err.Error())
 		return
 	}
 	review.TimeStamp = time.Now().UTC()
 	var station Station
-	db.Get(&station, "SELECT StationID FROM stations WHERE StationID=$1", id)
+	if err := db.Get(&station, "SELECT StationID FROM stations WHERE StationID=$1", id); err != nil {
+		log.Printf("\n\nerror checking if station exists : %v\n\n", err)
+		ctx.StatusCode(iris.StatusBadRequest)
+		ctx.WriteString(err.Error())
+		return
+	}
 	review.StationID = station.StationID
 	tx := db.MustBegin()
 	tx.MustExec("INSERT INTO reviews (StationID,TimeStamp,Body,Rating) VALUES ($1, $2, $3, $4)",
@@ -256,7 +263,14 @@ func reviewStation(ctx irisctx.Context) {
 		review.TimeStamp,
 		review.Body,
 		review.Rating)
-	tx.Commit()
+	if err := tx.Commit(); err != nil {
+		log.Printf("\n\nerror creating review: %v\n\n", err)
+		ctx.StatusCode(iris.StatusBadRequest)
+		ctx.WriteString(err.Error())
+		return
+	}
+	ctx.Gzip(true)
+	ctx.JSON(review)
 	return
 }
 
