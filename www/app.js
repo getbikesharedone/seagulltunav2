@@ -33,7 +33,65 @@ Vue.component('station-card', {
 
 Vue.component('free-bikes-counter', {
   template: '<div>Free bikes: {{free}}</div>',
-  props: ['free']
+  props: ['station'],
+  data() {
+    return { free: this.station.free }
+  },
+  created() {
+    eventBus.$on('freeUpdated', (free) => {
+      this.free = free
+    })
+  }
+})
+
+Vue.component('update-free-bikes-button', {
+  template: `
+  <div style="margin:15px" class="ui right action input">
+  
+  <input v-model.number="free" type="text">
+  <button @click="saveFree()" class="ui orange labeled icon button">
+  <i class="bicycle icon"></i>
+  Update Available
+  </button>
+  </div>
+  `,
+  props: ['station'],
+  data() {
+    return {
+      free: this.station.free, 
+      open: this.station.open,
+      safe: this.station.safe
+    }
+  },
+  methods: {
+    saveFree() {
+      eventBus.$emit('freeUpdated', this.free)
+      axios
+        .post("/api/station/" + this.station.id, {
+          id: this.station.id,
+          free: this.free,
+          open: this.open,
+          safe: this.safe,
+        })
+        .then(res => {
+          if (res.status == 200) {
+            if (res.data != null) {
+            }
+          }
+        })
+        .catch(error => {
+          this.advice = "There was an error: " + error.message;
+        });
+    },
+  },
+  created() {
+    eventBus.$on('openToggled', (open) => {
+      this.open = open
+    })
+    eventBus.$on('safeToggled', (safe) => {
+      this.safe = safe
+    })
+  }
 })
 
 Vue.component('open-checkbox', {
@@ -76,7 +134,7 @@ Vue.component('open-checkbox-toggle', {
           id: this.station.id,
           open: this.open,
           safe: this.safe,
-          
+
         })
         .then(res => {
           if (res.status == 200) {
@@ -229,7 +287,7 @@ Vue.component("stations-list", {
       <safe-checkbox :station="station"></safe-checkbox>
       </div>
       <div class="ui basic segment">
-      <free-bikes-counter :free="station.free"></free-bikes-counter>
+      <free-bikes-counter :station="station"></free-bikes-counter>
       </div>
     </div>
     
@@ -250,15 +308,9 @@ Vue.component("stations-list", {
   <div style="margin:15px" class="ui form">
   <open-checkbox-toggle :station="station"></open-checkbox-toggle>
   <safe-checkbox-toggle :station="station"></safe-checkbox-toggle>
+  <update-free-bikes-button :station="station"></update-free-bikes-button>
   </div>
-<div style="margin:15px" class="ui right action input">
 
-<input v-model.number="station.free" type="text">
-<button @click="updateAvailable(station)" class="ui orange labeled icon button">
-<i class="bicycle icon"></i>
-Update Available
-</button>
-</div>
   <div class="actions">
     <div class="approve ui button">Close</div>
   </div>
