@@ -122,6 +122,7 @@ Vue.component('open-checkbox-toggle', {
   props: ['station'],
   data() {
     return {
+      free: this.station.free,
       open: this.station.open,
       safe: this.station.safe
     }
@@ -132,6 +133,7 @@ Vue.component('open-checkbox-toggle', {
       axios
         .post("/api/station/" + this.station.id, {
           id: this.station.id,
+          free: this.free,
           open: this.open,
           safe: this.safe,
 
@@ -182,6 +184,7 @@ Vue.component('safe-checkbox-toggle', {
   props: ['station'],
   data() {
     return {
+      free: this.station.free,
       open: this.station.open,
       safe: this.station.safe
     }
@@ -192,8 +195,9 @@ Vue.component('safe-checkbox-toggle', {
       axios
         .post("/api/station/" + this.station.id, {
           id: this.station.id,
+          free: this.free,
+          open: this.open,
           safe: this.safe,
-          open: this.open
         })
         .then(res => {
           if (res.status == 200) {
