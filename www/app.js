@@ -33,58 +33,126 @@ Vue.component('station-card', {
 
 Vue.component('free-bikes-counter', {
   template: '<div>Free bikes: {{free}}</div>',
-  props:['free']
+  props: ['free']
 })
 
 Vue.component('open-checkbox', {
   template: `
   <div class="ui read-only checkbox">
-  <input type="checkbox" v-model="open">
-  <label>Open</label>
+  <input :id="_uid" type="checkbox" v-model="open">
+  <label :for="_uid">Open</label>
 </div>
   `,
-  mounted() {
-    $(".ui.read-only.checkbox").checkbox()
+  props: ['station'],
+  data() {
+    return { open: this.station.open }
   },
-  props:['open']
+  created() {
+    eventBus.$on('openToggled', (open) => {
+      this.open = open
+    })
+  }
 })
 
 Vue.component('open-checkbox-toggle', {
   template: `
   <div class="ui checkbox toggle">
-  <input type="checkbox" v-model="">
-  <label>Open</label>
+  <input :id="_uid" type="checkbox" v-model="open" @change="saveOpen">
+  <label :for="_uid">Open</label>
 </div>
-  `
+  `,
+  props: ['station'],
+  data() {
+    return {
+      open: this.station.open,
+      safe: this.station.safe
+    }
+  },
+  methods: {
+    saveOpen() {
+      eventBus.$emit('openToggled', this.open)
+      axios
+        .post("/api/station/" + this.station.id, {
+          id: this.station.id,
+          open: this.open,
+          safe: this.safe,
+          
+        })
+        .then(res => {
+          if (res.status == 200) {
+            if (res.data != null) {
+            }
+          }
+        })
+        .catch(error => {
+          this.advice = "There was an error: " + error.message;
+        });
+    }
+  },
+  created() {
+    eventBus.$on('safeToggled', (safe) => {
+      this.safe = safe
+    })
+  }
 })
 
 Vue.component('safe-checkbox', {
   template: `
-  <div class="ui read-only checkbox">
-  <input type="checkbox" v-model="safe">
-  <label>Safe</label>
+  <div class="ui checkbox">
+  <input :id="_uid" type="checkbox" v-model="safe" disabled>
+  <label :for="_uid">Safe</label>
 </div>
   `,
-  mounted() {
-    $(".ui.read-only.checkbox").checkbox()
+  props: ['station'],
+  data() {
+    return { safe: this.station.safe }
   },
-  props:['safe']
+  created() {
+    eventBus.$on('safeToggled', (safe) => {
+      this.safe = safe
+    })
+  }
 })
 
 Vue.component('safe-checkbox-toggle', {
   template: `
   <div class="ui checkbox toggle">
-  <input type="checkbox" v-model="safe">
-  <label>Safe</label>
+  <input :id="_uid" type="checkbox" v-model="safe" @change="saveSafe">
+  <label :for="_uid">Safe</label>
 </div>
   `,
-  created() {
-   
-  },
+  props: ['station'],
   data() {
-    return { safe: false }
+    return {
+      open: this.station.open,
+      safe: this.station.safe
+    }
   },
-  props: ['station']
+  methods: {
+    saveSafe() {
+      eventBus.$emit('safeToggled', this.safe)
+      axios
+        .post("/api/station/" + this.station.id, {
+          id: this.station.id,
+          safe: this.safe,
+          open: this.open
+        })
+        .then(res => {
+          if (res.status == 200) {
+            if (res.data != null) {
+            }
+          }
+        })
+        .catch(error => {
+          this.advice = "There was an error: " + error.message;
+        });
+    }
+  },
+  created() {
+    eventBus.$on('openToggled', (open) => {
+      this.open = open
+    })
+  }
 })
 
 Vue.component('modal', {
@@ -111,58 +179,11 @@ Vue.component('settings-button', {
   methods: {
     callMultiple(station, index) {
       this.showModal(index)
-      this.addCheckboxListener(station)
-      this.currentStation = station;
     },
     showModal(index) {
       $('.ui.modal.idx' + index)
         .modal('show')
         ;
-    },
-    addCheckboxListener(station) {
-      vm = this;
-      let checked = station.safe ? 'set checked' : 'set unchecked'
-      $('.ui.checkbox.isSafe').checkbox(checked).checkbox({
-        onChange: function () {
-          axios
-            .post("/api/station/" + station.id, {
-              id: station.id,
-              safe: !station.safe
-            })
-            .then(res => {
-              if (res.status == 200) {
-                if (res.data != null) {
-                  station.safe = res.data.safe
-                }
-              }
-            })
-            .catch(error => {
-              this.advice = "There was an error: " + error.message;
-            });
-
-        }
-      });
-      checked = station.open ? 'set checked' : 'set unchecked'
-      $('.ui.checkbox.isOpen').checkbox(checked).checkbox({
-        onChange: function () {
-          axios
-            .post("/api/station/" + station.id, {
-              id: station.id,
-              open: !station.open
-            })
-            .then(res => {
-              if (res.status == 200) {
-                if (res.data != null) {
-                  station.open = res.data.open
-                }
-              }
-            })
-            .catch(error => {
-              this.advice = "There was an error: " + error.message;
-            });
-
-        }
-      });
     }
   }
 })
@@ -202,10 +223,10 @@ Vue.component("stations-list", {
     <span class="header">{{station.name}}</span>
     <div class="ui horizontal segments">
       <div class="ui basic segment">
-      <open-checkbox :open="station.open"></open-checkbox>
+      <open-checkbox :station="station"></open-checkbox>
       </div>
       <div class="ui basic segment">
-      <safe-checkbox :safe="station.safe"></safe-checkbox>
+      <safe-checkbox :station="station"></safe-checkbox>
       </div>
       <div class="ui basic segment">
       <free-bikes-counter :free="station.free"></free-bikes-counter>
