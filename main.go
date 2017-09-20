@@ -222,7 +222,7 @@ func updateStationDB(update Station) (Station, error) {
 	}
 
 	var reviews = []Review{}
-	err = db.Select(&reviews, "SELECT User, Body, Rating, TimeStamp FROM reviews where StationID=$1", updated.StationID)
+	err = db.Select(&reviews, "SELECT ReviewID, StationID, User, Body, Rating, TimeStamp FROM reviews where StationID=$1", updated.StationID)
 	if err != nil {
 		return existing, err
 	}
@@ -268,8 +268,9 @@ func reviewStation(ctx irisctx.Context) {
 		ctx.WriteString(err.Error())
 		return
 	}
+
 	var newReview Review
-	if err := db.Get(&newReview, "Select StationID,TimeStamp,Body,Rating,User FROM reviews WHERE TimeStamp=$1", review.TimeStamp); err != nil {
+	if err := db.Get(&newReview, "Select ReviewID, StationID, User, Body, Rating, TimeStamp FROM reviews WHERE TimeStamp=$1", review.TimeStamp); err != nil {
 		log.Printf("\n\nerror retriving new review: %v\n\n", err)
 		ctx.StatusCode(iris.StatusBadRequest)
 		ctx.WriteString(err.Error())

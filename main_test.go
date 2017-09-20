@@ -373,6 +373,9 @@ func TestCreateReview(t *testing.T) {
 				if got.Rating != tt.req.Rating {
 					t.Errorf("expected: %v but got: %v", tt.req.Rating, got.Rating)
 				}
+				if got.ReviewID == 0 {
+					t.Errorf("expected: non zero reviewID")
+				}
 				fmt.Printf("%+v\n ", got)
 			}
 
