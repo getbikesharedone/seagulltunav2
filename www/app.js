@@ -6,6 +6,69 @@ let markerCluster
 // Reference to map so markers can be re-added on zoom_out
 let map
 
+Vue.component('reviews-carousel', {
+  template: `
+  <div v-if="hasReviews">
+  <div v-for="review in reviews" style="color:black">
+  <p>User: {{review.user}}</p>
+  <p>Body: {{review.body}}</p>
+  <star-rating :rating="review.rating" :read-only=true :show-rating=false></star-rating>
+  </div>
+  </div>
+  <p v-else style="color:black">No reviews available</p>
+  `,
+  props:['station'],
+  data() {
+    return{
+      reviews: [],
+      review: ""
+    }
+  },
+  computed:{
+    hasReviews(){
+      return this.length !== 0
+    }
+  },
+  created(){
+    axios
+    .get("/api/station/" + this.station.id)
+    .then(res => {
+      if (res.status == 200) {
+        if (res.data != null) {
+          this.reviews = res.data.reviews
+        }
+      }
+    })
+    .catch(error => {
+      this.advice = "There was an error: " + error.message;
+    });
+  },
+  mounted(){
+    eventBus.$on("reviewSubmitted", review=>{
+      this.reviews.push(review)
+    })
+  }
+})
+
+Vue.component('write-review-button', {
+  props: ['station', 'index'],
+  template: `
+  <button @click="callMultiple(station, index)" class="ui button orange">
+  Write Review
+</button>
+  `,
+  methods: {
+    callMultiple(station, index) {
+      this.showModal(index)
+    },
+    showModal(index) {
+      $('.ui.modal.review.idx' + index)
+        .modal('show')
+        ;
+    }
+  }
+})
+
 Vue.component('station-card', {
   template: `
   <div class="ui card">
@@ -58,7 +121,7 @@ Vue.component('update-free-bikes-button', {
   props: ['station'],
   data() {
     return {
-      free: this.station.free, 
+      free: this.station.free,
       open: this.station.open,
       safe: this.station.safe
     }
@@ -221,15 +284,7 @@ Vue.component('modal', {
   template: '#modal-template'
 })
 
-Vue.component('rating', {
-  template: '<div class="ui rating" data-rating="3" data-max-rating="5"></div>',
-  mounted() {
-    $('.ui.rating')
-      .rating()
-      ;
-
-  }
-})
+Vue.component('star-rating', VueStarRating.default);
 
 Vue.component('settings-button', {
   props: ['station', 'index'],
@@ -243,7 +298,7 @@ Vue.component('settings-button', {
       this.showModal(index)
     },
     showModal(index) {
-      $('.ui.modal.idx' + index)
+      $('.ui.modal.settings.idx' + index)
         .modal('show')
         ;
     }
@@ -252,6 +307,7 @@ Vue.component('settings-button', {
 
 Vue.component("stations-list", {
   template: `
+  
   <div style="width: 100%; height: 100%;overflow-x: scroll;">
 
   <div class="ui styled fluid accordion">
@@ -263,6 +319,7 @@ Vue.component("stations-list", {
     <tr><th><div class="ui horizontal yellow statistic">
     
     <div class="value">
+    
       {{stations.length}}
     </div>
     <div class="label">
@@ -299,12 +356,14 @@ Vue.component("stations-list", {
       </td>
       </div>  
   <div class=" content">
-<settings-button :station="station" :index="index"></settings-button>
-  <p v-if="availableReviews" style="color:black">No reviews available</p>
-    <p v-else style="color:black">{{reviews[0]}}</p>
+  <span>
+  <settings-button :station="station" :index="index"></settings-button>
+  <write-review-button :station="station" :index="index"></write-review-button>
+  </span>
+ <reviews-carousel :station="station"></reviews-carousel>
   </div>
   <i class="settings icon"></i>
-  <div :class="'idx' + index + ' ui modal'">
+  <div :class="'idx' + index + ' ui modal settings'">
   <i class="close icon"></i>
   <div class="header">
     Settings
@@ -314,6 +373,23 @@ Vue.component("stations-list", {
   <safe-checkbox-toggle :station="station"></safe-checkbox-toggle>
   <update-free-bikes-button :station="station"></update-free-bikes-button>
   </div>
+  <div :class="'idx' + index + ' ui modal review'">
+  <i class="close icon"></i>
+  <div class="header">
+    Write Review
+  </div>
+  <div class="ui form">
+  <div class="field">
+  <label>Name</label>
+  <input type="text" name="name" placeholder="Your name" v-model="user">
+</div>
+  <div class="field">
+    <label>Review</label>
+    <textarea v-model="body" placeholder="Write a review..."></textarea>
+  </div>
+  <star-rating v-model="rating" :show-rating=false></star-rating>
+  <button class="ui button" type="submit" @click="submit(station)">Submit</button>
+</div></div>
 
   <div class="actions">
     <div class="approve ui button">Close</div>
@@ -335,8 +411,11 @@ Vue.component("stations-list", {
       reviews: [],
       isSafe: true,
       isOpen: true,
-      currentStation: {}
-
+      currentStation: {},
+      rating: 0,
+      body: "",
+      user: "",
+      station: {}
     };
   },
   created() {
@@ -346,16 +425,45 @@ Vue.component("stations-list", {
     eventBus.$on("networksLoaded", networks => {
       this.networksLength = networks.length;
     });
+    eventBus.$on("ratingUpdated", rating => {
+      this.rating = rating
+    })
   },
   mounted() {
     $('.ui.accordion')
       .accordion()
-      ;
+
     $('.ui.modal')
       .modal()
-      ;
+
+    eventBus.$on("reviewSubmitted", reviews=>{
+      this.station.reviews = reviews
+    })
   },
   methods: {
+    submit(station){
+      axios
+      .post("/api/station/" + station.id + "/review", {
+        user: this.user,
+        body: this.body,
+        rating: this.rating
+      })
+      .then(res => {
+        if (res.status == 200) {
+          if (res.data != null) {
+            const review = {
+              body: res.data.body,
+              rating: res.data.rating,
+              user: res.data.user
+            }
+            eventBus.$emit("reviewSubmitted", review)
+          }
+        }
+      })
+      .catch(error => {
+        this.advice = "There was an error: " + error.message;
+      });
+    },
     updateAvailable: function (station) {
       axios
         .post("/api/station/" + station.id, {
@@ -393,7 +501,7 @@ Vue.component("stations-list", {
     availableReviews: function () {
       reviews[0] === undefined ? false : true
     }
-  }
+  },
 });
 
 const appVue = new Vue({
