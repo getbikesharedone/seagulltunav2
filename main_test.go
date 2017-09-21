@@ -53,7 +53,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestIndex(t *testing.T) {
-	testsrv := newSrv()
+	testsrv := newSrv(true)
 
 	e := httptest.New(t, testsrv)
 
@@ -63,7 +63,7 @@ func TestIndex(t *testing.T) {
 }
 
 func TestGetNetworkList(t *testing.T) {
-	testsrv := newSrv()
+	testsrv := newSrv(true)
 
 	e := httptest.New(t, testsrv)
 
@@ -77,7 +77,7 @@ func TestGetNetworkList(t *testing.T) {
 }
 
 func TestGetNetworkDetail(t *testing.T) {
-	testsrv := newSrv()
+	testsrv := newSrv(true)
 
 	e := httptest.New(t, testsrv)
 	type Test struct {
@@ -117,7 +117,7 @@ func TestGetNetworkDetail(t *testing.T) {
 }
 
 func TestGetNetworkDetailConcurrent(t *testing.T) {
-	testsrv := newSrv()
+	testsrv := newSrv(true)
 
 	e := httptest.New(t, testsrv)
 	type Test struct {
@@ -164,7 +164,7 @@ func TestGetNetworkDetailConcurrent(t *testing.T) {
 }
 
 func TestGetStation(t *testing.T) {
-	testsrv := newSrv()
+	testsrv := newSrv(true)
 
 	e := httptest.New(t, testsrv)
 	type Test struct {
@@ -204,7 +204,7 @@ func TestGetStation(t *testing.T) {
 }
 
 func TestGetStationWithBadInput(t *testing.T) {
-	testsrv := newSrv()
+	testsrv := newSrv(true)
 
 	e := httptest.New(t, testsrv)
 	type Test struct {
@@ -296,7 +296,7 @@ func TestUpdateStationDB(t *testing.T) {
 }
 
 func TestUpdateStation(t *testing.T) {
-	testsrv := newSrv()
+	testsrv := newSrv(true)
 
 	e := httptest.New(t, testsrv)
 	tests := []struct {
@@ -343,7 +343,7 @@ func TestUpdateStation(t *testing.T) {
 }
 
 func TestCreateReview(t *testing.T) {
-	testsrv := newSrv()
+	testsrv := newSrv(true)
 
 	e := httptest.New(t, testsrv)
 	tests := []struct {
@@ -354,6 +354,8 @@ func TestCreateReview(t *testing.T) {
 		content string
 	}{
 		{name: "test1", id: "1", req: Review{Body: "Some Review", User: "anon", Rating: 10}, content: "application/json", status: 200},
+		{name: "test2", id: "2", req: Review{User: "dsfsdfsdfsdf", Body: "sdgsdgsd", Rating: 1}, content: "application/json", status: 200},
+
 		// {name: "test1", id: "5364", req: Station{StationID: 5364, EmptySlots: 1200}, content: "application/json", status: 200},
 	}
 	for _, tt := range tests {
@@ -384,7 +386,7 @@ func TestCreateReview(t *testing.T) {
 }
 
 func TestEditRewview(t *testing.T) {
-	testsrv := newSrv()
+	testsrv := newSrv(true)
 
 	e := httptest.New(t, testsrv)
 	tests := []struct {
@@ -415,6 +417,13 @@ func TestEditRewview(t *testing.T) {
 			content: "",
 			status:  404,
 		},
+		{
+			name:    "test for ef",
+			id:      "2",
+			req:     Review{User: "dsfsdfsdfsdf", Body: "3235235235", Rating: 4},
+			content: "application/json",
+			status:  200,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -423,6 +432,9 @@ func TestEditRewview(t *testing.T) {
 				var got Review
 				if err := json.Unmarshal([]byte(response), &got); err != nil {
 					log.Println(err)
+				}
+				if tt.req.ReviewID == 0 && tt.id != "" {
+					tt.req.ReviewID, _ = strconv.Atoi(tt.id)
 				}
 				if got.ReviewID != tt.req.ReviewID {
 					t.Errorf("expected: %v but got: %v", tt.req.ReviewID, got.ReviewID)
