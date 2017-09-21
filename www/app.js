@@ -48,9 +48,9 @@ Vue.component('reviews-carousel', {
         this.advice = "There was an error: " + error.message;
       });
     eventBus.$on("reviewSubmitted", review => {
-      if (this.reviews !== undefined) { this.reviews.push(review) }
+      if (this.reviews !== undefined) { this.$set(this.reviews, review.index, review) }
 
-
+      eventBus.$emit("reviewsFromCarousel", this.reviews)
     })
   },
 })
@@ -366,7 +366,8 @@ Vue.component('edit-review-button', {
               const review = {
                 body: res.data.body,
                 rating: res.data.rating,
-                user: res.data.user
+                user: res.data.user,
+                index: this.index
               }
               eventBus.$emit("reviewSubmitted", review)
             }
@@ -764,7 +765,6 @@ const appVue = new Vue({
           if (res.status == 200) {
             if (res.data != null) {
               this.activeNetwork = res.data;
-              console.log(this.activeNetwork)
               this.stations = res.data.stations;
               eventBus.$emit("stationsLoaded", this.stations);
               eventBus.$emit("activeNetworkSelected", this.activeNetwork);
