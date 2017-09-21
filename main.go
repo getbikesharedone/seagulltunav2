@@ -20,6 +20,7 @@ func main() {
 	log.Println("starting seagull")
 	var err error
 	var reBuildDB = flag.Bool("rebuild", false, "rebuild database")
+	var devMode = flag.Bool("dev", false, "use the www directory for serving content")
 	flag.Parse()
 
 	if *reBuildDB {
@@ -35,17 +36,26 @@ func main() {
 		log.Fatalf("database error: %v", err)
 	}
 
-	srv := newSrv()
+	srv := newSrv(*devMode)
 
 	if err := srv.Run(iris.Addr(":9090"), iris.WithoutVersionChecker); err != nil {
 		log.Fatalf("failed to start http server: %v\n", err)
 	}
 }
 
-func newSrv() *iris.Application {
+func newSrv(devmode bool) *iris.Application {
 	srv := iris.New()
 	srv.Use()
-	srv.StaticWeb("/", "www/")
+	// build assest with go-bindata www/...
+	// in bindata.go add line to var _bindata:
+	//        "www/":wwwIndexHtml,
+	// this set the naked request to return index.html
+	//
+	if devmode {
+		srv.StaticWeb("/", "www/")
+	} else {
+		srv.StaticEmbedded("/", "www/", Asset, AssetNames)
+	}
 	srv.Get("/api/network/{id:int}", getDetail)
 	srv.Get("/api/network", getNetworkList)
 	srv.Get("/api/review/{id:int}", getReview)
@@ -115,6 +125,15 @@ func getReview(ctx irisctx.Context) {
 
 func editReview(ctx irisctx.Context) {
 	defer timeLog(time.Now(), "editReview")
+	idStr := ctx.Params().Get("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		log.Printf("bad id: %v does not exist: %v\n", idStr, err)
+		ctx.StatusCode(iris.StatusBadRequest)
+		ctx.WriteString("bad review id in requests url")
+		return
+	}
+
 	var review Review
 	if err := ctx.ReadJSON(&review); err != nil {
 		log.Printf("error parsing json: %v\n", err)
@@ -122,11 +141,16 @@ func editReview(ctx irisctx.Context) {
 		ctx.WriteString(err.Error())
 		return
 	}
+	if review.ReviewID == 0 {
+		review.ReviewID = id
+	}
+
 	if len(review.Body) > 250 {
 		ctx.StatusCode(iris.StatusBadRequest)
 		ctx.WriteString("body greater than 250 characters")
 		return
 	}
+
 	var existing Review
 	if err := db.Get(&existing, "Select ReviewID from reviews WHERE ReviewID=$1", review.ReviewID); err != nil {
 		log.Printf("review id: %d does not exist: %v\n", review.ReviewID, err)
