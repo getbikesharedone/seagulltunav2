@@ -46,7 +46,7 @@ func newSrv() *iris.Application {
 	srv := iris.New()
 	srv.Use()
 	srv.StaticWeb("/", "www/")
-	srv.Get("/api/network/{id:string}", getDetail)
+	srv.Get("/api/network/{id:int}", getDetail)
 	srv.Get("/api/network", getNetworkList)
 	srv.Get("/api/review/{id:int}", getReview)
 	srv.Put("/api/review/{id:int}", editReview)
@@ -60,12 +60,6 @@ func getStation(ctx irisctx.Context) {
 	defer timeLog(time.Now(), "getStation")
 	idStr := ctx.Params().Get("id")
 
-	if idStr == "" {
-		log.Printf("empty station id in requests url")
-		ctx.StatusCode(iris.StatusBadRequest)
-		ctx.WriteString("empty station id in requests url")
-		return
-	}
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
 		log.Printf("bad id: %v does not exist: %v\n", idStr, err)
@@ -98,12 +92,6 @@ func getReview(ctx irisctx.Context) {
 	defer timeLog(time.Now(), "getReview")
 	idStr := ctx.Params().Get("id")
 
-	if idStr == "" {
-		log.Printf("empty review id in requests url")
-		ctx.StatusCode(iris.StatusBadRequest)
-		ctx.WriteString("bad review id in requests url")
-		return
-	}
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
 		log.Printf("bad id: %v does not exist: %v\n", idStr, err)
@@ -171,10 +159,13 @@ func editReview(ctx irisctx.Context) {
 
 func updateStation(ctx irisctx.Context) {
 	defer timeLog(time.Now(), "updateStation")
-	id := ctx.Params().Get("id")
-	if id == "" {
+	idStr := ctx.Params().Get("id")
+
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		log.Printf("bad id: %v does not exist: %v\n", idStr, err)
 		ctx.StatusCode(iris.StatusBadRequest)
-		ctx.WriteString("bad station id " + id + " in request url")
+		ctx.WriteString("bad station id in requests url")
 		return
 	}
 
@@ -185,9 +176,14 @@ func updateStation(ctx irisctx.Context) {
 		ctx.WriteString(err.Error())
 		return
 	}
+	if id != s.StationID {
+		ctx.StatusCode(iris.StatusBadRequest)
+		ctx.WriteString("request id does not match object id")
+		return
+	}
 	if s.StationID == 0 {
 		ctx.StatusCode(iris.StatusBadRequest)
-		ctx.WriteString("station id not present in request body")
+		ctx.WriteString("bad station station id")
 		return
 	}
 	u, err := updateStationDB(s)
@@ -226,7 +222,7 @@ func updateStationDB(update Station) (Station, error) {
 	}
 
 	var reviews = []Review{}
-	err = db.Select(&reviews, "SELECT User, Body, Rating, TimeStamp FROM reviews where StationID=$1", updated.StationID)
+	err = db.Select(&reviews, "SELECT ReviewID, StationID, User, Body, Rating, TimeStamp FROM reviews where StationID=$1", updated.StationID)
 	if err != nil {
 		return existing, err
 	}
@@ -241,11 +237,7 @@ func updateStationDB(update Station) (Station, error) {
 func reviewStation(ctx irisctx.Context) {
 	defer timeLog(time.Now(), "reviewStation")
 	id := ctx.Params().Get("id")
-	if id == "" {
-		ctx.StatusCode(iris.StatusBadRequest)
-		ctx.WriteString("bad id " + id + "in request url")
-		return
-	}
+
 	var review Review
 	err := ctx.ReadJSON(&review)
 	if err != nil {
@@ -276,8 +268,9 @@ func reviewStation(ctx irisctx.Context) {
 		ctx.WriteString(err.Error())
 		return
 	}
+
 	var newReview Review
-	if err := db.Get(&newReview, "Select StationID,TimeStamp,Body,Rating,User FROM reviews WHERE TimeStamp=$1", review.TimeStamp); err != nil {
+	if err := db.Get(&newReview, "Select ReviewID, StationID, User, Body, Rating, TimeStamp FROM reviews WHERE TimeStamp=$1", review.TimeStamp); err != nil {
 		log.Printf("\n\nerror retriving new review: %v\n\n", err)
 		ctx.StatusCode(iris.StatusBadRequest)
 		ctx.WriteString(err.Error())
@@ -293,12 +286,6 @@ func getDetail(ctx irisctx.Context) {
 	defer timeLog(time.Now(), "getDetail")
 	idStr := ctx.Params().Get("id")
 
-	if idStr == "" {
-		log.Printf("empty network id in requests url")
-		ctx.StatusCode(iris.StatusBadRequest)
-		ctx.WriteString("bad network id in requests url")
-		return
-	}
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
 		log.Printf("bad id: %v does not exist: %v\n", idStr, err)

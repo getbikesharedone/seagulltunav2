@@ -27,7 +27,10 @@ Vue.component('reviews-carousel', {
   },
   computed: {
     hasReviews() {
-      return this.length !== 0
+      if (this.reviews !== undefined) {
+        return this.reviews.length !== 0
+      }
+      return false;
     },
   },
   created() {
@@ -37,20 +40,19 @@ Vue.component('reviews-carousel', {
         if (res.status == 200) {
           if (res.data != null) {
             this.reviews = res.data.reviews
-            eventBus.$emit("reviewsFromCarousel".reviews)
+            eventBus.$emit("reviewsFromCarousel", this.reviews)
           }
         }
       })
       .catch(error => {
         this.advice = "There was an error: " + error.message;
       });
-  },
-  mounted() {
     eventBus.$on("reviewSubmitted", review => {
-      this.reviews.push(review)
+      if (this.reviews !== undefined) { this.reviews.push(review) }
+
 
     })
-  }
+  },
 })
 
 Vue.component('write-review-button', {
@@ -324,23 +326,25 @@ Vue.component('edit-review-button', {
 <div class="ui form">
 <div class="field">
 <label>Name</label>
-<input type="text" name="name" :value="review.user" v-model="user">
+<input type="text" name="name" v-model="user">
 </div>
 <div class="field">
   <label>Review</label>
-  <textarea :value="review.body" placeholder="Write a review..."></textarea>
+  <textarea placeholder="Write a review..." v-model="body"></textarea>
 </div>
-<star-rating :rating="review.rating" :show-rating=false></star-rating>
+<star-rating  :show-rating=false v-model="rating"></star-rating>
 <button class="ui button" type="submit" @click="updateReview">Submit</button>
 </div></div>
 
 </div>
   `,
-  data(){
-    return{
-      user:"",
-      body:"",
-      rating: -1
+  created() {
+  },
+  data() {
+    return {
+      user: this.review.user,
+      body: this.review.body,
+      rating: this.review.rating
     }
   },
   methods: {
@@ -351,7 +355,7 @@ Vue.component('edit-review-button', {
     },
     updateReview() {
       axios
-        .post("/api/review/" + this.review.id, {
+        .put("/api/review/" + this.review.id, {
           user: this.user,
           body: this.body,
           rating: this.rating
@@ -380,7 +384,7 @@ Vue.component('edit-review-button', {
     computedClass() {
       return 'ui modal edit-review ' + this.getUniqueId;
     },
-    getUniqueId(){
+    getUniqueId() {
       return "" + this.index + this.station.id;
     }
   }
@@ -415,9 +419,40 @@ Vue.component("stations-list", {
   <div class="label">
     Networks
   </div>
-  </div></th>
+  </div>
+  </th>
   </tr></thead>
   <tbody>
+  <div class="">
+  <div class="ui grid">
+  <div class="four wide column blackText">
+  Network:
+  </div>
+  <div class="four wide column blackText">
+    {{networkName}}
+  </div>
+  <div class="four wide column blackText">
+  
+  Company:
+  </div>
+  <div class="four wide column blackText">
+    {{networkCompany}}
+  </div>
+  <div class="four wide column blackText">
+  City:
+</div>
+
+<div class="four wide column blackText">
+  {{networkCity}}
+</div>
+<div class="four wide column blackText">
+Country:
+</div>
+
+<div class="four wide column blackText">
+{{networkCountry}}
+</div></div></div>
+  <tr>
     <tr v-bind:key="station.id" v-bind:station="station" style="width:95%;margin-left:auto; margin-right:auto; margin-top:15px; margin-bottom:15px" class="ui card" v-for="(station, index) in stations">
     <div v-on:click="loadReviews(station.id)" class="title">
     <td>
@@ -480,7 +515,7 @@ Vue.component("stations-list", {
 </table>
 
 
-</div>
+</div></div>
     </div>
     `,
   data() {
@@ -494,12 +529,22 @@ Vue.component("stations-list", {
       rating: 0,
       body: "",
       user: "",
-      station: {}
+      station: {},
+      networkName: "",
+      networkCity: "",
+      networkCompany: "",
+      networkCountry: ""
     };
   },
   created() {
     eventBus.$on("stationsLoaded", stations => {
       this.stations = stations
+    });
+    eventBus.$on("activeNetworkSelected", activeNetwork=>{
+      this.networkCity = activeNetwork.city
+      this.networkName = activeNetwork.name
+      this.networkCompany = activeNetwork.company
+      this.networkCountry = activeNetwork.country
     });
     eventBus.$on("networksLoaded", networks => {
       this.networksLength = networks.length;
@@ -719,8 +764,10 @@ const appVue = new Vue({
           if (res.status == 200) {
             if (res.data != null) {
               this.activeNetwork = res.data;
+              console.log(this.activeNetwork)
               this.stations = res.data.stations;
               eventBus.$emit("stationsLoaded", this.stations);
+              eventBus.$emit("activeNetworkSelected", this.activeNetwork);
             }
           }
         })
