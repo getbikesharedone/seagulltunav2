@@ -9,43 +9,46 @@ let map
 Vue.component('reviews-carousel', {
   template: `
   <div v-if="hasReviews">
-  <div v-for="review in reviews" style="color:black">
+  <div v-for="(review,index) in reviews" style="color:black">
   <p>User: {{review.user}}</p>
   <p>Body: {{review.body}}</p>
   <star-rating :rating="review.rating" :read-only=true :show-rating=false></star-rating>
+  <edit-review-button :station="station" :review="review" :index="index" ></edit-review-button>
   </div>
   </div>
   <p v-else style="color:black">No reviews available</p>
   `,
-  props:['station'],
+  props: ['station', 'index'],
   data() {
-    return{
+    return {
       reviews: [],
       review: ""
     }
   },
-  computed:{
-    hasReviews(){
+  computed: {
+    hasReviews() {
       return this.length !== 0
-    }
+    },
   },
-  created(){
+  created() {
     axios
-    .get("/api/station/" + this.station.id)
-    .then(res => {
-      if (res.status == 200) {
-        if (res.data != null) {
-          this.reviews = res.data.reviews
+      .get("/api/station/" + this.station.id)
+      .then(res => {
+        if (res.status == 200) {
+          if (res.data != null) {
+            this.reviews = res.data.reviews
+            eventBus.$emit("reviewsFromCarousel".reviews)
+          }
         }
-      }
-    })
-    .catch(error => {
-      this.advice = "There was an error: " + error.message;
-    });
+      })
+      .catch(error => {
+        this.advice = "There was an error: " + error.message;
+      });
   },
-  mounted(){
-    eventBus.$on("reviewSubmitted", review=>{
+  mounted() {
+    eventBus.$on("reviewSubmitted", review => {
       this.reviews.push(review)
+
     })
   }
 })
@@ -160,7 +163,7 @@ Vue.component('update-free-bikes-button', {
 Vue.component('open-checkbox', {
   template: `
   <div class="ui read-only checkbox">
-  <input :id="_uid" type="checkbox" v-model="open">
+  <input :id="_uid" type="checkbox" v-model="open" disabled>
   <label :for="_uid">Open</label>
 </div>
   `,
@@ -305,6 +308,86 @@ Vue.component('settings-button', {
   }
 })
 
+Vue.component('edit-review-button', {
+  props: ['station', 'index', 'review'],
+  template: `
+  <div>
+  <button @click="showModal" class="ui button blue">
+  Edit Review
+</button>
+
+<div :class="computedClass">
+<i class="close icon"></i>
+<div class="header">
+  Edit Review
+</div>
+<div class="ui form">
+<div class="field">
+<label>Name</label>
+<input type="text" name="name" :value="review.user" v-model="user">
+</div>
+<div class="field">
+  <label>Review</label>
+  <textarea :value="review.body" placeholder="Write a review..."></textarea>
+</div>
+<star-rating :rating="review.rating" :show-rating=false></star-rating>
+<button class="ui button" type="submit" @click="updateReview">Submit</button>
+</div></div>
+
+</div>
+  `,
+  data(){
+    return{
+      user:"",
+      body:"",
+      rating: -1
+    }
+  },
+  methods: {
+    showModal() {
+      $(this.computedClassSelector)
+        .modal('show')
+        ;
+    },
+    updateReview() {
+      axios
+        .post("/api/review/" + this.review.id, {
+          user: this.user,
+          body: this.body,
+          rating: this.rating
+        })
+        .then(res => {
+          if (res.status == 200) {
+            if (res.data != null) {
+              const review = {
+                body: res.data.body,
+                rating: res.data.rating,
+                user: res.data.user
+              }
+              eventBus.$emit("reviewSubmitted", review)
+            }
+          }
+        })
+        .catch(error => {
+          this.advice = "There was an error: " + error.message;
+        });
+    }
+  },
+  computed: {
+    computedClassSelector() {
+      return '.ui.modal.edit-review.' + this.getUniqueId;
+    },
+    computedClass() {
+      return 'ui modal edit-review ' + this.getUniqueId;
+    },
+    getUniqueId(){
+      return "" + this.index + this.station.id;
+    }
+  }
+})
+
+
+
 Vue.component("stations-list", {
   template: `
   
@@ -360,7 +443,7 @@ Vue.component("stations-list", {
   <settings-button :station="station" :index="index"></settings-button>
   <write-review-button :station="station" :index="index"></write-review-button>
   </span>
- <reviews-carousel :station="station"></reviews-carousel>
+ <reviews-carousel :station="station" :index="index"></reviews-carousel>
   </div>
   <i class="settings icon"></i>
   <div :class="'idx' + index + ' ui modal settings'">
@@ -389,12 +472,8 @@ Vue.component("stations-list", {
   </div>
   <star-rating v-model="rating" :show-rating=false></star-rating>
   <button class="ui button" type="submit" @click="submit(station)">Submit</button>
-</div></div>
+</div></div></div>
 
-  <div class="actions">
-    <div class="approve ui button">Close</div>
-  </div>
-  </div>
     </tr>
     
   </tbody>
@@ -436,33 +515,52 @@ Vue.component("stations-list", {
     $('.ui.modal')
       .modal()
 
-    eventBus.$on("reviewSubmitted", reviews=>{
+    eventBus.$on("reviewSubmitted", reviews => {
+      this.station.reviews = reviews
+
+    })
+    eventBus.$on('reviewsFromCarousel', reviews => {
       this.station.reviews = reviews
     })
+
+
+    // axios
+    //   .get("/api/review/" + review.id)
+    //   .then(res => {
+    //     if (res.status == 200) {
+    //       if (res.data != null) {
+    //         this.body = res.data.body
+    //       }
+    //     }
+    //   })
+    //   .catch(error => {
+    //     this.advice = "There was an error: " + error.message;
+    //   });
+
   },
   methods: {
-    submit(station){
+    submit(station) {
       axios
-      .post("/api/station/" + station.id + "/review", {
-        user: this.user,
-        body: this.body,
-        rating: this.rating
-      })
-      .then(res => {
-        if (res.status == 200) {
-          if (res.data != null) {
-            const review = {
-              body: res.data.body,
-              rating: res.data.rating,
-              user: res.data.user
+        .post("/api/station/" + station.id + "/review", {
+          user: this.user,
+          body: this.body,
+          rating: this.rating
+        })
+        .then(res => {
+          if (res.status == 200) {
+            if (res.data != null) {
+              const review = {
+                body: res.data.body,
+                rating: res.data.rating,
+                user: res.data.user
+              }
+              eventBus.$emit("reviewSubmitted", review)
             }
-            eventBus.$emit("reviewSubmitted", review)
           }
-        }
-      })
-      .catch(error => {
-        this.advice = "There was an error: " + error.message;
-      });
+        })
+        .catch(error => {
+          this.advice = "There was an error: " + error.message;
+        });
     },
     updateAvailable: function (station) {
       axios
@@ -654,7 +752,6 @@ const appVue = new Vue({
       this.addStationMarkers(map, stations);
     });
     eventBus.$on("clickStation", station => {
-      console.log(this.showModal)
       // display modal
       this.showModal = true;
 
