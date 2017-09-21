@@ -47,30 +47,19 @@ Vue.component('reviews-carousel', {
       .catch(error => {
         this.advice = "There was an error: " + error.message;
       });
+
     eventBus.$on("reviewSubmitted", review => {
-      if (this.reviews !== undefined) { this.$set(this.reviews, review.index, review) }
-
-      eventBus.$emit("reviewsFromCarousel", this.reviews)
+      if (this.reviews !== undefined) { 
+        this.$set(this.reviews, review.index, review) 
+      }
     })
-  },
-})
+    eventBus.$on("reviewCreated", review => {
+      if(this.reviews !== undefined)
+        this.reviews.push(review)
+      
+      })
 
-Vue.component('write-review-button', {
-  props: ['station', 'index'],
-  template: `
-  <button @click="callMultiple(station, index)" class="ui button orange">
-  Write Review
-</button>
-  `,
-  methods: {
-    callMultiple(station, index) {
-      this.showModal(index)
-    },
-    showModal(index) {
-      $('.ui.modal.review.idx' + index)
-        .modal('show')
-        ;
-    }
+    eventBus.$emit("reviewsFromCarousel", this.reviews)
   }
 })
 
@@ -310,6 +299,109 @@ Vue.component('settings-button', {
   }
 })
 
+Vue.component('write-review-button', {
+  props: ['station', 'index', 'review'],
+  template: `
+  <div>
+  <button @click="showModal" class="ui button orange">
+  Write Review
+</button>
+
+<div :class="computedClass">
+  <i class="close icon"></i>
+  <div class="header">
+    Write Review
+  </div>
+  <div class="ui form">
+  <div class="field">
+  <label>Name</label>
+  <input type="text" name="name" placeholder="Your name" v-model="user">
+</div>
+  <div class="field">
+    <label>Review</label>
+    <textarea v-model="body" placeholder="Write a review..."></textarea>
+  </div>
+  <star-rating v-model="rating" :show-rating=false></star-rating>
+  <button class="ui button" type="submit" @click="submit(station)">Submit</button>
+</div></div></div>
+  `,
+  created() {
+  },
+  data() {
+    return {
+      user: "",
+      body: "",
+      rating: -1
+    }
+  },
+  methods: {
+    submit(station) {
+      axios
+        .post("/api/station/" + station.id + "/review", {
+          user: this.user,
+          body: this.body,
+          rating: this.rating,
+          index: this.index
+        })
+        .then(res => {
+          if (res.status == 200) {
+            if (res.data != null) {
+              const review = {
+                body: res.data.body,
+                rating: res.data.rating,
+                user: res.data.user
+              }
+              eventBus.$emit("reviewCreated", review)
+            }
+          }
+        })
+        .catch(error => {
+          this.advice = "There was an error: " + error.message;
+        });
+    },
+    showModal() {
+      $(this.computedClassSelector)
+        .modal('show')
+        ;
+    },
+    updateReview() {
+      axios
+        .put("/api/review/" + this.review.id, {
+          user: this.user,
+          body: this.body,
+          rating: this.rating
+        })
+        .then(res => {
+          if (res.status == 200) {
+            if (res.data != null) {
+              const review = {
+                body: res.data.body,
+                rating: res.data.rating,
+                user: res.data.user,
+                index: this.index
+              }
+              eventBus.$emit("reviewSubmitted", review)
+            }
+          }
+        })
+        .catch(error => {
+          this.advice = "There was an error: " + error.message;
+        });
+    }
+  },
+  computed: {
+    computedClassSelector() {
+      return '.ui.modal.write-review.' + this.getUniqueId;
+    },
+    computedClass() {
+      return 'ui modal write-review ' + this.getUniqueId;
+    },
+    getUniqueId() {
+      return "" + this.index + this.station.id;
+    }
+  }
+})
+
 Vue.component('edit-review-button', {
   props: ['station', 'index', 'review'],
   template: `
@@ -492,23 +584,7 @@ Country:
   <safe-checkbox-toggle :station="station"></safe-checkbox-toggle>
   <update-free-bikes-button :station="station"></update-free-bikes-button>
   </div>
-  <div :class="'idx' + index + ' ui modal review'">
-  <i class="close icon"></i>
-  <div class="header">
-    Write Review
   </div>
-  <div class="ui form">
-  <div class="field">
-  <label>Name</label>
-  <input type="text" name="name" placeholder="Your name" v-model="user">
-</div>
-  <div class="field">
-    <label>Review</label>
-    <textarea v-model="body" placeholder="Write a review..."></textarea>
-  </div>
-  <star-rating v-model="rating" :show-rating=false></star-rating>
-  <button class="ui button" type="submit" @click="submit(station)">Submit</button>
-</div></div></div>
 
     </tr>
     
@@ -541,7 +617,7 @@ Country:
     eventBus.$on("stationsLoaded", stations => {
       this.stations = stations
     });
-    eventBus.$on("activeNetworkSelected", activeNetwork=>{
+    eventBus.$on("activeNetworkSelected", activeNetwork => {
       this.networkCity = activeNetwork.city
       this.networkName = activeNetwork.name
       this.networkCompany = activeNetwork.company
