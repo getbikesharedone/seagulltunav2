@@ -35,8 +35,9 @@ export default {
       center: { lat: 10.0, lng: 10.0 },
       networks: [],
       networkMarkers: [],
-      zoom: 3,
       selectedNetwork: {},
+      stations: [],
+      zoom: 3,
     };
   },
   methods: {
@@ -66,10 +67,21 @@ export default {
     createStationMarkers(selectedNetworkMarker) {
       this.selectedNetwork = selectedNetworkMarker;
       this.hideNetworkMarkers();
-      this.centerNetworkFitBounds();
+      this.getStations();
+      // this.centerNetworkFitBounds();
     },
     hideNetworkMarkers() {
       this.$refs.networkCluster.$clusterObject.clearMarkers();
+    },
+    getStations() {
+      Axios
+        .get(`/api/network/${this.selectedNetwork.id}`)
+        .then((res) => {
+          this.stations = res.data.stations;
+        })
+        .catch((error) => {
+          console.log(error);
+        });
     },
   },
   watch: {
