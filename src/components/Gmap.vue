@@ -12,6 +12,9 @@
       <google-cluster ref="networkCluster">
         <gmap-marker ref="networkMarkers" :key="index" v-for="(m, index) in networkMarkers" :position="m.position" :clickable="true" :draggable="true" @click="createStationMarkers(m)"></gmap-marker>
       </google-cluster>
+      <google-cluster ref="stationCluster">
+        <gmap-marker ref="stationMarkers" :key="index" v-for="(m, index) in stationMarkers" :position="m.position" :clickable="true" :draggable="true" @click="selectStation(m)"></gmap-marker>
+      </google-cluster>
     </gmap-map>
 
   </div>
@@ -36,6 +39,7 @@ export default {
       networks: [],
       networkMarkers: [],
       selectedNetwork: {},
+      stationMarkers: [],
       stations: [],
       zoom: 3,
     };
@@ -67,14 +71,16 @@ export default {
     createStationMarkers(selectedNetworkMarker) {
       this.selectedNetwork = selectedNetworkMarker;
       this.hideNetworkMarkers();
-      this.getStations();
+      this.getStations().then(() => {
+        this.createSMarkers();
+      });
       // this.centerNetworkFitBounds();
     },
     hideNetworkMarkers() {
       this.$refs.networkCluster.$clusterObject.clearMarkers();
     },
     getStations() {
-      Axios
+      return Axios
         .get(`/api/network/${this.selectedNetwork.id}`)
         .then((res) => {
           this.stations = res.data.stations;
@@ -82,6 +88,23 @@ export default {
         .catch((error) => {
           console.log(error);
         });
+    },
+    createSMarkers() {
+      this.stations.forEach((station) => {
+        const marker = {
+          empty: station.empty,
+          free: station.free,
+          open: station.open,
+          safe: station.safe,
+          time: station.time,
+          title: station.name,
+          position: {
+            lat: station.lat, lng: station.lng,
+          },
+          id: station.id,
+        };
+        this.stationMarkers.push(marker);
+      });
     },
   },
   watch: {
