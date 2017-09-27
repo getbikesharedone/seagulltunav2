@@ -1,12 +1,6 @@
 <template>
   <v-app id="example-1" toolbar footer>
-    <v-navigation-drawer
-      persistent
-      v-model="drawer"
-      light
-      enable-resize-watcher
-      absolute
-    >
+    <v-navigation-drawer persistent v-model="drawer" light enable-resize-watcher absolute>
       <v-list dense>
         <v-list-tile>
           <v-list-tile-action>
@@ -47,12 +41,6 @@ export default {
   data() {
     return {
       drawer: true,
-      center: { lat: 10.0, lng: 10.0 },
-      markers: [{
-        position: { lat: 10.0, lng: 10.0 },
-      }, {
-        position: { lat: 11.0, lng: 11.0 },
-      }],
     };
   },
 };
