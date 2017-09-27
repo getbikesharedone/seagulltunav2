@@ -1,16 +1,19 @@
 <template>
   <!-- The inline styles for the below div and gmap-map. They bypass a height bug, thus allowing
-  Google Maps to be flex and 100% height. -->
+    Google Maps to be flex and 100% height. -->
   <div style="display: flex;
-    min-height: 100%;
-    flex-direction: column;">
+      min-height: 100%;
+      flex-direction: column;">
     <gmap-map style="" :center="center" :zoom="zoom" style="position: absolute;
-    left: 0;
-    right: 0;
-    top: 0;
-    bottom: 0;">
-      <gmap-marker :key="index" v-for="(m, index) in networkMarkers" :position="m.position" :clickable="true" :draggable="true" @click="center=m.position"></gmap-marker>
+      left: 0;
+      right: 0;
+      top: 0;
+      bottom: 0;">
+      <google-cluster ref="networkCluster">
+        <gmap-marker ref="networkMarkers" :key="index" v-for="(m, index) in networkMarkers" :position="m.position" :clickable="true" :draggable="true" @click="createStationMarkers(m)"></gmap-marker>
+      </google-cluster>
     </gmap-map>
+
   </div>
 </template>
 
@@ -24,6 +27,7 @@ Vue.use(VueGoogleMaps, {
     key: 'AIzaSyDDy5IUrvL4bVAdeQ_MBvcqsy1rgs5X3V4',
   },
 });
+Vue.component('google-cluster', VueGoogleMaps.Cluster);
 
 export default {
   data() {
@@ -32,6 +36,7 @@ export default {
       networks: [],
       networkMarkers: [],
       zoom: 3,
+      selectedNetwork: {},
     };
   },
   methods: {
@@ -57,6 +62,14 @@ export default {
         };
         this.networkMarkers.push(marker);
       });
+    },
+    createStationMarkers(selectedNetworkMarker) {
+      this.selectedNetwork = selectedNetworkMarker;
+      this.hideNetworkMarkers();
+      this.centerNetworkFitBounds();
+    },
+    hideNetworkMarkers() {
+      this.$refs.networkCluster.$clusterObject.clearMarkers();
     },
   },
   watch: {
