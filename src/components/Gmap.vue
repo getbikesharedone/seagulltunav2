@@ -39,6 +39,7 @@ export default {
       networks: [],
       networkMarkers: [],
       selectedNetwork: {},
+      selectedStation: {},
       stationMarkers: [],
       stations: [],
       zoom: 3,
@@ -105,6 +106,9 @@ export default {
         };
         this.stationMarkers.push(marker);
       });
+    },
+    selectStation(station) {
+      this.selectedStation = station;
     },
   },
   watch: {
