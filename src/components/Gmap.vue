@@ -1,20 +1,18 @@
 <template>
   <!-- The inline styles for the below div and gmap-map. They bypass a height bug, thus allowing
-    Google Maps to be flex and 100% height. -->
+      Google Maps to be flex and 100% height. -->
   <div style="display: flex;
-      min-height: 100%;
-      flex-direction: column;">
-    <gmap-map style="" :center="center" :zoom="zoom" style="position: absolute;
-      left: 0;
-      right: 0;
-      top: 0;
-      bottom: 0;">
+        min-height: 100%;
+        flex-direction: column;">
+    <gmap-map @zoom_changed="zoom = $event" @bounds_changed="bounds = $event" ref="map" style="" :center="center" :zoom="zoom" style="position: absolute;
+        left: 0;
+        right: 0;
+        top: 0;
+        bottom: 0;">
       <google-cluster ref="networkCluster">
         <gmap-marker ref="networkMarkers" :key="index" v-for="(m, index) in networkMarkers" :position="m.position" :clickable="true" :draggable="true" @click="createStationMarkers(m)"></gmap-marker>
       </google-cluster>
-      <google-cluster ref="stationCluster">
-        <gmap-marker ref="stationMarkers" :key="index" v-for="(m, index) in stationMarkers" :position="m.position" :clickable="true" :draggable="true" @click="selectStation(m)"></gmap-marker>
-      </google-cluster>
+      <gmap-marker ref="stationMarkers" :key="index" v-for="(m, index) in stationMarkers" :position="m.position" :clickable="true" :draggable="true" @click="selectStation(m)"></gmap-marker>
     </gmap-map>
 
   </div>
@@ -31,10 +29,12 @@ Vue.use(VueGoogleMaps, {
   },
 });
 Vue.component('google-cluster', VueGoogleMaps.Cluster);
+/* global google */
 
 export default {
   data() {
     return {
+      bounds: {},
       center: { lat: 10.0, lng: 10.0 },
       networks: [],
       networkMarkers: [],
@@ -74,8 +74,8 @@ export default {
       this.hideNetworkMarkers();
       this.getStations().then(() => {
         this.createSMarkers();
+        this.fitStationBounds();
       });
-      // this.centerNetworkFitBounds();
     },
     hideNetworkMarkers() {
       this.$refs.networkCluster.$clusterObject.clearMarkers();
@@ -109,6 +109,20 @@ export default {
     },
     selectStation(station) {
       this.selectedStation = station;
+    },
+    fitStationBounds() {
+      const bounds = new google.maps.LatLngBounds();
+      this.stationMarkers.forEach((marker) => {
+        bounds.extend(marker.position);
+      });
+      this.$refs.map.fitBounds(bounds);
+      this.zoom -= 1; // Remove one zoom level to ensure no marker is on the edge.
+      /* Set a minimum zoom.
+      If you got only 1 marker, or all markers are on the same address,
+      the map will be zoomed too much. */
+      if (this.zoom > 15) {
+        this.zoom = 15;
+      }
     },
   },
   watch: {
