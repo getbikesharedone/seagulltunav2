@@ -36,6 +36,7 @@ export default {
     return {
       bounds: {},
       center: { lat: 10.0, lng: 10.0 },
+      created: false,
       networks: [],
       networkMarkers: [],
       selectedNetwork: {},
@@ -67,11 +68,12 @@ export default {
           id: network.id,
         };
         this.networkMarkers.push(marker);
+        this.created = true;
       });
     },
     createStationMarkers(selectedNetworkMarker) {
       this.selectedNetwork = selectedNetworkMarker;
-      this.hideNetworkMarkers();
+      // this.hideNetworkMarkers(); // causes slowness when re-adding markers
       this.getStations().then(() => {
         this.createSMarkers();
         this.fitStationBounds();
@@ -124,6 +126,10 @@ export default {
         this.zoom = 15;
       }
     },
+    hideStationMarkers() {
+      /* eslint-disable no-param-reassign */
+      this.stationMarkers = [];
+    },
   },
   watch: {
     /* eslint-disable object-shorthand, no-unused-vars */
@@ -131,6 +137,15 @@ export default {
     '$route'(to, from) {
       // Call resizePreserveCenter() on all maps
       Vue.$gmapDefaultResizeBus.$emit('resize');
+    },
+    zoom(newZoom) {
+      if (this.created === true && newZoom <= 10) {
+        if (this.stationMarkers.length !== 0) {
+          this.hideStationMarkers();
+        }
+        // this.createNetworkMarkers(); // used in conjunction with other same named method
+        this.created = false;
+      }
     },
   },
   created() {
