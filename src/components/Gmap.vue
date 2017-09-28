@@ -47,17 +47,40 @@ export default {
     };
   },
   methods: {
-    getNetworks() {
-      Axios
-        .get('/api/network')
-        .then((res) => {
-          this.networks = res.data;
-          this.createNetworkMarkers();
-        })
-        .catch((error) => {
-          console.log(error);
-        });
+    /* eslint-disable no-unused-expressions */
+    createStationMarkers(selectedNetworkMarker) {
+      this.selectedNetwork = selectedNetworkMarker;
+      // this.hideNetworkMarkers(); // causes slowness when re-adding markers
+      this.getStations.then(() => {
+        this.createSMarkers;
+        this.fitStationBounds;
+      });
     },
+    selectStation(station) {
+      this.selectedStation = station;
+    },
+  },
+  watch: {
+    /* eslint-disable object-shorthand, no-unused-vars */
+    // This prevents grey areas on the map.
+    '$route'(to, from) {
+      // Call resizePreserveCenter() on all maps
+      Vue.$gmapDefaultResizeBus.$emit('resize');
+    },
+    zoom(newZoom) {
+      if (this.created === true && newZoom <= 10) {
+        if (this.stationMarkers.length !== 0) {
+          this.hideStationMarkers;
+        }
+        // this.createNetworkMarkers(); // used in conjunction with other same named method
+        this.created = false;
+      }
+    },
+  },
+  created() {
+    this.getNetworks;
+  },
+  computed: {
     createNetworkMarkers() {
       this.networks.forEach((network) => {
         const marker = {
@@ -70,27 +93,6 @@ export default {
         this.networkMarkers.push(marker);
         this.created = true;
       });
-    },
-    createStationMarkers(selectedNetworkMarker) {
-      this.selectedNetwork = selectedNetworkMarker;
-      // this.hideNetworkMarkers(); // causes slowness when re-adding markers
-      this.getStations().then(() => {
-        this.createSMarkers();
-        this.fitStationBounds();
-      });
-    },
-    hideNetworkMarkers() {
-      this.$refs.networkCluster.$clusterObject.clearMarkers();
-    },
-    getStations() {
-      return Axios
-        .get(`/api/network/${this.selectedNetwork.id}`)
-        .then((res) => {
-          this.stations = res.data.stations;
-        })
-        .catch((error) => {
-          console.log(error);
-        });
     },
     createSMarkers() {
       this.stations.forEach((station) => {
@@ -109,9 +111,6 @@ export default {
         this.stationMarkers.push(marker);
       });
     },
-    selectStation(station) {
-      this.selectedStation = station;
-    },
     fitStationBounds() {
       const bounds = new google.maps.LatLngBounds();
       this.stationMarkers.forEach((marker) => {
@@ -126,30 +125,34 @@ export default {
         this.zoom = 15;
       }
     },
+    getNetworks() {
+      Axios
+        .get('/api/network')
+        .then((res) => {
+          this.networks = res.data;
+          this.createNetworkMarkers;
+        })
+        .catch((error) => {
+          console.log(error);
+        });
+    },
+    getStations() {
+      return Axios
+        .get(`/api/network/${this.selectedNetwork.id}`)
+        .then((res) => {
+          this.stations = res.data.stations;
+        })
+        .catch((error) => {
+          console.log(error);
+        });
+    },
+    hideNetworkMarkers() {
+      this.$refs.networkCluster.$clusterObject.clearMarkers();
+    },
     hideStationMarkers() {
       /* eslint-disable no-param-reassign */
       this.stationMarkers = [];
     },
-  },
-  watch: {
-    /* eslint-disable object-shorthand, no-unused-vars */
-    // This prevents grey areas on the map.
-    '$route'(to, from) {
-      // Call resizePreserveCenter() on all maps
-      Vue.$gmapDefaultResizeBus.$emit('resize');
-    },
-    zoom(newZoom) {
-      if (this.created === true && newZoom <= 10) {
-        if (this.stationMarkers.length !== 0) {
-          this.hideStationMarkers();
-        }
-        // this.createNetworkMarkers(); // used in conjunction with other same named method
-        this.created = false;
-      }
-    },
-  },
-  created() {
-    this.getNetworks();
   },
 };
 </script>
