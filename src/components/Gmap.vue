@@ -22,6 +22,9 @@
 import * as VueGoogleMaps from 'vue2-google-maps';
 import Vue from 'vue';
 import Axios from 'axios';
+import EventBus from '@/event-bus';
+
+console.log(EventBus);
 
 Vue.use(VueGoogleMaps, {
   load: {
@@ -50,14 +53,20 @@ export default {
     /* eslint-disable no-unused-expressions */
     createStationMarkers(selectedNetworkMarker) {
       this.selectedNetwork = selectedNetworkMarker;
-      // this.hideNetworkMarkers(); // causes slowness when re-adding markers
+      /* hideNetworkMarkers() causes slowness when re-adding markers; 
+      comment this and createNetworkMarkers() out for better performance */
+      this.hideNetworkMarkers();
       this.getStations.then(() => {
         this.createSMarkers;
         this.fitStationBounds;
       });
     },
+    hideNetworkMarkers() {
+      this.$refs.networkCluster.$clusterObject.clearMarkers();
+    },
     selectStation(station) {
       this.selectedStation = station;
+      EventBus.$emit('stationSelected', this.selectedStation);
     },
   },
   watch: {
@@ -72,7 +81,9 @@ export default {
         if (this.stationMarkers.length !== 0) {
           this.hideStationMarkers;
         }
-        // this.createNetworkMarkers(); // used in conjunction with other same named method
+        /* createNetworkMarkers() used in conjunction with hideNetworkMarkers(); 
+        comment out for better performance */
+        this.createNetworkMarkers;
         this.created = false;
       }
     },
@@ -145,9 +156,6 @@ export default {
         .catch((error) => {
           console.log(error);
         });
-    },
-    hideNetworkMarkers() {
-      this.$refs.networkCluster.$clusterObject.clearMarkers();
     },
     hideStationMarkers() {
       /* eslint-disable no-param-reassign */
