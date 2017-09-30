@@ -87,15 +87,15 @@ export default {
       thumbnail1024wSrc: '',
       thumbnail2048wSrc: '',
       selectedStation: { position: { lat: 0, lng: 0 } },
+      imageKey: '',
     };
   },
   methods: {
-    getImagesSrc(key) {
-      this.thumbnail320wSrc = `https://d1cuyjsrcm0gby.cloudfront.net/${key}/thumb-320.jpg`;
-      console.log(this.thumbnail320wSrc);
-      this.thumbnail640wSrc = `https://d1cuyjsrcm0gby.cloudfront.net/${key}/thumb-320.jpg`;
-      this.thumbnail1024wSrc = `https://d1cuyjsrcm0gby.cloudfront.net/${key}/thumb-320.jpg`;
-      this.thumbnail2048wSrc = `https://d1cuyjsrcm0gby.cloudfront.net/${key}/thumb-320.jpg`;
+    getImagesSrc() {
+      this.thumbnail320wSrc = `https://d1cuyjsrcm0gby.cloudfront.net/${this.imageKey}/thumb-320.jpg`;
+      this.thumbnail640wSrc = `https://d1cuyjsrcm0gby.cloudfront.net/${this.imageKey}/thumb-320.jpg`;
+      this.thumbnail1024wSrc = `https://d1cuyjsrcm0gby.cloudfront.net/${this.imageKey}/thumb-320.jpg`;
+      this.thumbnail2048wSrc = `https://d1cuyjsrcm0gby.cloudfront.net/${this.imageKey}/thumb-320.jpg`;
     },
   },
   computed: {
@@ -107,10 +107,8 @@ export default {
       axios
         .get(this.imageUrl)
         .then((res) => {
-          console.log('res');
-          console.log(res);
-          const key = res.data.features[0].properties.key;
-          this.getImagesSrc(key);
+          this.imageKey = res.data.features[0].properties.key;
+          this.getImagesSrc();
         })
         .catch((error) => {
           console.log(error);
@@ -119,6 +117,7 @@ export default {
     imageUrl() {
       const lat = this.selectedStation.position.lat;
       const lng = this.selectedStation.position.lng;
+      console.log(`lat: ${lat}, lng: ${lng}`);
       const baseUrl = 'https://a.mapillary.com/v3/images?';
       const clientId = 'client_id=SHNGU2JaY3Z4M3hEMWd5eW1CNElhQTowM2FhZjZhZWIyYmVkOTY0';
       const lookAt = `&lookat=${lat},${lng}`;
@@ -131,8 +130,6 @@ export default {
   },
   created() {
     EventBus.$on('stationSelected', (selectedStation) => {
-      console.log('selectedStation');
-      console.log(selectedStation);
       this.selectedStation = selectedStation;
       this.getStationImageFeature;
     });

@@ -24,8 +24,6 @@ import Vue from 'vue';
 import Axios from 'axios';
 import EventBus from '@/event-bus';
 
-console.log(EventBus);
-
 Vue.use(VueGoogleMaps, {
   load: {
     key: 'AIzaSyDDy5IUrvL4bVAdeQ_MBvcqsy1rgs5X3V4',
@@ -136,7 +134,7 @@ export default {
       this.selectedNetwork = selectedNetworkMarker;
       /* hideNetworkMarkers() causes slowness when re-adding markers; 
       comment this and createNetworkMarkers() out for better performance */
-      this.hideNetworkMarkers();
+      // this.hideNetworkMarkers();
       this.getStations.then(() => {
         this.createSMarkers;
         this.fitStationBounds;
@@ -157,17 +155,17 @@ export default {
       // Call resizePreserveCenter() on all maps
       Vue.$gmapDefaultResizeBus.$emit('resize');
     },
-    zoom(newZoom) {
-      if (this.created === true && newZoom <= 10) {
-        if (this.stationMarkers.length !== 0) {
-          this.hideStationMarkers;
-        }
-        /* createNetworkMarkers() used in conjunction with hideNetworkMarkers(); 
-        comment out for better performance */
-        this.createNetworkMarkers;
-        this.created = false;
-      }
-    },
+    // zoom(newZoom) {
+    //   if (this.created === true && newZoom <= 10) {
+    //     if (this.stationMarkers.length !== 0) {
+    //       this.hideStationMarkers;
+    //     }
+    //     /* createNetworkMarkers() used in conjunction with hideNetworkMarkers(); 
+    //     comment out for better performance */&radius=500
+    //     this.createNetworkMarkers;
+    //     this.created = false;
+    //   }
+    // },
   },
   created() {
     this.getNetworks;
