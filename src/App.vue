@@ -26,6 +26,9 @@
 import * as VueGoogleMaps from 'vue2-google-maps';
 import Vue from 'vue';
 import Drawer from '@/components/Drawer';
+import StarRating from 'vue-star-rating';
+
+Vue.component('star-rating', StarRating);
 
 Vue.use(VueGoogleMaps, {
   load: {

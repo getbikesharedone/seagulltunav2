@@ -18,6 +18,7 @@
     "eslint": "^4.7.2",
     "vue": "^2.4.2",
     "vue-router": "^2.7.0",
+    "vue-star-rating": "^1.4.0",
     "vue2-google-maps": "^0.8.3",
     "vuetify": "^0.15.7"
   },
