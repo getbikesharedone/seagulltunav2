@@ -1,14 +1,14 @@
 <template>
   <v-app id="example-1" toolbar footer>
-    <v-navigation-drawer persistent v-model="drawer" light enable-resize-watcher absolute>
+    <v-navigation-drawer persistent v-model="overviewDrawer" light enable-resize-watcher absolute>
       <v-layout row>
     <v-flex>
-      <drawer></drawer>
+      <div :is="currentDrawer"></div>
     </v-flex>
   </v-layout>
     </v-navigation-drawer>
     <v-toolbar class="indigo" dark fixed>
-      <v-toolbar-side-icon @click.stop="drawer = !drawer"></v-toolbar-side-icon>
+      <v-toolbar-side-icon @click.stop="overviewDrawer = !overviewDrawer"></v-toolbar-side-icon>
       <v-toolbar-title>Bike Network Location Finder</v-toolbar-title>
     </v-toolbar>
     <main>
@@ -25,7 +25,7 @@
 <script>
 import * as VueGoogleMaps from 'vue2-google-maps';
 import Vue from 'vue';
-import Drawer from '@/components/Drawer';
+import OverviewDrawer from '@/components/OverviewDrawer';
 import StarRating from 'vue-star-rating';
 
 Vue.component('star-rating', StarRating);
@@ -39,9 +39,10 @@ Vue.use(VueGoogleMaps, {
 export default {
   data() {
     return {
-      drawer: true,
+      currentDrawer: 'overviewDrawer',
+      overviewDrawer: true,
     };
   },
-  components: { drawer: Drawer },
+  components: { overviewDrawer: OverviewDrawer },
 };
 </script>
