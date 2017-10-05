@@ -26,6 +26,7 @@
 import * as VueGoogleMaps from 'vue2-google-maps';
 import Vue from 'vue';
 import OverviewDrawer from '@/components/OverviewDrawer';
+import ReviewsDrawer from '@/components/ReviewsDrawer';
 import StarRating from 'vue-star-rating';
 
 Vue.component('star-rating', StarRating);
@@ -39,10 +40,14 @@ Vue.use(VueGoogleMaps, {
 export default {
   data() {
     return {
-      currentDrawer: 'overviewDrawer',
-      overviewDrawer: true,
+      currentDrawer: 'OverviewDrawer',
+      reviewsDrawer: 'ReviewsDrawer',
+      overviewDrawer: 'OverviewDrawer',
     };
   },
-  components: { overviewDrawer: OverviewDrawer },
+  components: {
+    OverviewDrawer,
+    ReviewsDrawer,
+  },
 };
 </script>
