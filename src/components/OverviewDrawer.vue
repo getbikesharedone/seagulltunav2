@@ -4,10 +4,10 @@
           <v-layout column class="media">
             <v-card-title>
               <v-spacer></v-spacer>
-              <v-btn dark icon class="mr-3" @click="">
+              <v-btn dark icon class="mr-3">
                 <v-icon>edit</v-icon>
               </v-btn>
-              <v-btn dark icon>
+              <v-btn dark icon @click="switchToReviews()">
                 <v-icon>more_vert</v-icon>
               </v-btn>
             </v-card-title>
@@ -78,6 +78,9 @@ export default {
       this.thumbnail640wSrc = `https://d1cuyjsrcm0gby.cloudfront.net/${this.imageKey}/thumb-320.jpg`;
       this.thumbnail1024wSrc = `https://d1cuyjsrcm0gby.cloudfront.net/${this.imageKey}/thumb-320.jpg`;
       this.thumbnail2048wSrc = `https://d1cuyjsrcm0gby.cloudfront.net/${this.imageKey}/thumb-320.jpg`;
+    },
+    switchToReviews() {
+      EventBus.$emit('switchToReviews', this.selectedStation);
     },
   },
   computed: {

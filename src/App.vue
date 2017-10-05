@@ -3,7 +3,7 @@
     <v-navigation-drawer persistent v-model="overviewDrawer" light enable-resize-watcher absolute>
       <v-layout row>
     <v-flex>
-      <div :is="currentDrawer"></div>
+      <div :is="currentDrawer" :selectedStation="selectedStation"></div>
     </v-flex>
   </v-layout>
     </v-navigation-drawer>
@@ -28,6 +28,7 @@ import Vue from 'vue';
 import OverviewDrawer from '@/components/OverviewDrawer';
 import ReviewsDrawer from '@/components/ReviewsDrawer';
 import StarRating from 'vue-star-rating';
+import EventBus from '@/event-bus';
 
 Vue.component('star-rating', StarRating);
 
@@ -43,11 +44,21 @@ export default {
       currentDrawer: 'OverviewDrawer',
       reviewsDrawer: 'ReviewsDrawer',
       overviewDrawer: 'OverviewDrawer',
+      selectedStation: {},
     };
   },
   components: {
     OverviewDrawer,
     ReviewsDrawer,
+  },
+  created() {
+    EventBus.$on('switchToReviews', (selectedStation) => {
+      this.selectedStation = selectedStation;
+      this.currentDrawer = 'ReviewsDrawer';
+    });
+    EventBus.$on('switchToOverview', () => {
+      this.currentDrawer = 'OverviewDrawer';
+    });
   },
 };
 </script>

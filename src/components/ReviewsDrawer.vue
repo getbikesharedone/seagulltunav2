@@ -1,59 +1,37 @@
 <template>
-  <v-card>
-        <v-card-media :src="thumbnail320wSrc">
-          <v-layout column class="media">
-            <v-card-title>
-              <v-spacer></v-spacer>
-              <v-btn dark icon class="mr-3" @click="">
-                <v-icon>edit</v-icon>
-              </v-btn>
-              <v-btn dark icon>
+  <v-app id="e3" style="max-width: 400px; margin: auto;" standalone>
+    <v-toolbar class="pink">
+      <v-toolbar-title class="white--text">Reviews</v-toolbar-title>
+      <v-spacer></v-spacer>
+      <v-btn icon>
+        <v-icon>add</v-icon>
+      </v-btn>
+      <v-btn dark icon @click="switchToOverview()">
                 <v-icon>more_vert</v-icon>
               </v-btn>
-            </v-card-title>
-            <v-spacer></v-spacer>
-            <v-card-title class="white--text pl-5 pt-5">
-              <div class="">{{selectedStation.title}}</div>
-            </v-card-title>
-          </v-layout>
-        </v-card-media>
-        <v-list two-line>
-          <v-list-tile>
-            <v-list-tile-action>
-            </v-list-tile-action>
-            <v-list-tile-content>
-              <v-list-tile-title>{{selectedStation.empty}}</v-list-tile-title>
-              <v-list-tile-sub-title>anime</v-list-tile-sub-title>
-            </v-list-tile-content>
-            <v-list-tile-action>
-            </v-list-tile-action>
-          </v-list-tile>
-          <v-list-tile>
-            <v-list-tile-action></v-list-tile-action>
-            <v-list-tile-content>
-              <v-list-tile-title>{{selectedStation.free}}</v-list-tile-title>
-              <v-list-tile-sub-title>Free</v-list-tile-sub-title>
-            </v-list-tile-content>
-            <v-list-tile-action>
-            </v-list-tile-action>
-          </v-list-tile>
-          <v-list-tile>
-            <v-list-tile-action>
-            </v-list-tile-action>
-            <v-list-tile-content>
-              <v-list-tile-title>{{selectedStation.open}}</v-list-tile-title>
-              <v-list-tile-sub-title>Open</v-list-tile-sub-title>
-            </v-list-tile-content>
-          </v-list-tile>
-          <v-list-tile>
-            <v-list-tile-action></v-list-tile-action>
-            <v-list-tile-content>
-              <v-list-tile-title>{{selectedStation.safe}}</v-list-tile-title>
-              <v-list-tile-sub-title>Safe</v-list-tile-sub-title>
-            </v-list-tile-content>
-          </v-list-tile>
-        </v-list>
-      </v-card>
+    </v-toolbar>
+    <main>
+      <v-container
+        fluid
+        style="min-height: 0;"
+        grid-list-lg
+      >
+        <v-layout row wrap>
+          <v-flex xs12 v-for="review in reviews" :key="review.id">
+            <v-card class="blue-grey darken-2 white--text">
+              <v-card-title primary-title>
+                <div class="headline">Unlimited music now</div>
+                <div>Listen to your favorite artists and albums whenenver and wherever, online and offline.</div>
+              </v-card-title>
+              <v-card-actions>
+                <v-btn flat dark>Listen now</v-btn>
+              </v-card-actions>
+            </v-card>
+          </v-flex>
+        </v-layout>
+      </v-container>
+    </main>
+  </v-app>
 </template>
 
 <script>
@@ -68,16 +46,20 @@ export default {
       thumbnail640wSrc: '',
       thumbnail1024wSrc: '',
       thumbnail2048wSrc: '',
-      selectedStation: { position: { lat: 0, lng: 0 } },
       imageKey: '',
+      reviews: [],
     };
   },
+  props: ['selectedStation'],
   methods: {
     getImagesSrc() {
       this.thumbnail320wSrc = `https://d1cuyjsrcm0gby.cloudfront.net/${this.imageKey}/thumb-320.jpg`;
       this.thumbnail640wSrc = `https://d1cuyjsrcm0gby.cloudfront.net/${this.imageKey}/thumb-320.jpg`;
       this.thumbnail1024wSrc = `https://d1cuyjsrcm0gby.cloudfront.net/${this.imageKey}/thumb-320.jpg`;
       this.thumbnail2048wSrc = `https://d1cuyjsrcm0gby.cloudfront.net/${this.imageKey}/thumb-320.jpg`;
+    },
+    switchToOverview() {
+      EventBus.$emit('switchToOverview');
     },
   },
   computed: {
@@ -109,12 +91,6 @@ export default {
     photoPageUrl() {
       return `https://www.mapillary.com/app/?focus=photo&pKey=${this.key}`;
     },
-  },
-  created() {
-    EventBus.$on('stationSelected', (selectedStation) => {
-      this.selectedStation = selectedStation;
-      this.getStationImageFeature;
-    });
   },
 };
 </script>
