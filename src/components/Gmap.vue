@@ -201,6 +201,7 @@ export default {
             lat: station.lat, lng: station.lng,
           },
           id: station.id,
+          reviews: station.reviews,
         };
         this.stationMarkers.push(marker);
       });

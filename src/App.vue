@@ -1,11 +1,7 @@
 <template>
   <v-app id="example-1" toolbar footer>
     <v-navigation-drawer persistent v-model="overviewDrawer" light enable-resize-watcher absolute>
-      <v-layout row>
-    <v-flex>
       <div :is="currentDrawer" :selectedStation="selectedStation"></div>
-    </v-flex>
-  </v-layout>
     </v-navigation-drawer>
     <v-toolbar class="indigo" dark fixed>
       <v-toolbar-side-icon @click.stop="overviewDrawer = !overviewDrawer"></v-toolbar-side-icon>
@@ -58,6 +54,14 @@ export default {
     });
     EventBus.$on('switchToOverview', () => {
       this.currentDrawer = 'OverviewDrawer';
+    });
+    EventBus.$on('addReview', (review) => {
+      console.log(this.selectedStation);
+      if (this.selectedStation.reviews !== undefined) {
+        this.selectedStation.reviews[review.index].push(review);
+      } else {
+        this.selectedStation.reviews = [review];
+      }
     });
   },
 };

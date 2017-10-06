@@ -3,9 +3,39 @@
     <v-toolbar class="pink">
       <v-toolbar-title class="white--text">Reviews</v-toolbar-title>
       <v-spacer></v-spacer>
-      <v-btn icon>
+      <v-dialog v-model="dialog" persistent width="50%">
+      <v-btn icon slot="activator">
         <v-icon>add</v-icon>
       </v-btn>
+      <v-card>
+              <v-card-title>
+                <span class="headline">Add Review</span>
+              </v-card-title>
+              <v-card-text>
+                <v-container grid-list-md>
+                  <v-layout>
+                      <v-flex>
+                  <v-text-field label="Author" v-model="user" :rules="authorRules" required></v-text-field>
+                </v-flex>
+                  </v-layout>
+                  <v-layout>
+                       <v-flex>
+                  <v-text-field multi-line label="Content" v-model="body" :rules="contentRules" required></v-text-field>
+                </v-flex>
+                  </v-layout>
+                  <v-layout>
+                      <v-flex><star-rating v-model="rating"></star-rating></v-flex>
+                  </v-layout>
+                </v-container>
+                <small>*indicates required field</small>
+              </v-card-text>
+              <v-card-actions>
+                <v-spacer></v-spacer>
+                <v-btn class="blue--text darken-1" flat @click.native="dialog = false">Close</v-btn>
+                <v-btn class="blue--text darken-1" flat @click.native="saveReview">Save</v-btn>
+                <v-flex x </v-card-actions>
+            </v-card>
+      </v-dialog>
       <v-btn dark icon @click="switchToOverview()">
                 <v-icon>more_vert</v-icon>
               </v-btn>
@@ -17,16 +47,8 @@
         grid-list-lg
       >
         <v-layout row wrap>
-          <v-flex xs12 v-for="review in reviews" :key="review.id">
-            <v-card class="blue-grey darken-2 white--text">
-              <v-card-title primary-title>
-                <div class="headline">Unlimited music now</div>
-                <div>Listen to your favorite artists and albums whenenver and wherever, online and offline.</div>
-              </v-card-title>
-              <v-card-actions>
-                <v-btn flat dark>Listen now</v-btn>
-              </v-card-actions>
-            </v-card>
+          <v-flex v-for="(review, index) in reviews" :key="review.id">
+            <review :review="review" :index="index"></review>
           </v-flex>
         </v-layout>
       </v-container>
@@ -37,60 +59,73 @@
 <script>
 import axios from 'axios';
 import EventBus from '@/event-bus';
+import StarRating from 'vue-star-rating';
+import Review from '@/components/Review';
+
 
 export default {
   /* eslint-disable no-unused-expressions */
   data() {
     return {
-      thumbnail320wSrc: '',
-      thumbnail640wSrc: '',
-      thumbnail1024wSrc: '',
-      thumbnail2048wSrc: '',
-      imageKey: '',
       reviews: [],
+      dialog: false,
+      user: '',
+      body: '',
+      authorRules: [
+        v => !!v || 'Author is required',
+      ],
+      contentRules: [
+        v => !!v || 'Body is required',
+      ],
+      rating: 0,
     };
+  },
+  components: {
+    StarRating,
+    Review,
   },
   props: ['selectedStation'],
   methods: {
-    getImagesSrc() {
-      this.thumbnail320wSrc = `https://d1cuyjsrcm0gby.cloudfront.net/${this.imageKey}/thumb-320.jpg`;
-      this.thumbnail640wSrc = `https://d1cuyjsrcm0gby.cloudfront.net/${this.imageKey}/thumb-320.jpg`;
-      this.thumbnail1024wSrc = `https://d1cuyjsrcm0gby.cloudfront.net/${this.imageKey}/thumb-320.jpg`;
-      this.thumbnail2048wSrc = `https://d1cuyjsrcm0gby.cloudfront.net/${this.imageKey}/thumb-320.jpg`;
-    },
     switchToOverview() {
       EventBus.$emit('switchToOverview');
     },
-  },
-  computed: {
-    getSrcset() {
-      const srcSet = `${this.thumbnail640wSrc} 640w, ${this.thumbnail1024wSrc} 1024w, ${this.thumbnail2048wSrc} 2048w`;
-      return srcSet;
-    },
-    getStationImageFeature() {
+    saveReview() {
       axios
-        .get(this.imageUrl)
+        .post(`/api/station/${this.selectedStation.id}/review`, {
+          user: this.user,
+          body: this.body,
+          rating: this.rating,
+        })
         .then((res) => {
-          this.imageKey = res.data.features[0].properties.key;
-          this.getImagesSrc();
+          const review = {
+            user: res.data.user,
+            body: res.data.body,
+            rating: res.data.rating,
+          };
+          this.reviews.push(review);
+          review.index = this.selectedStation.index;
+          EventBus.$emit('addReview', review);
         })
         .catch((error) => {
           console.log(error);
         });
     },
-    imageUrl() {
-      const lat = this.selectedStation.position.lat;
-      const lng = this.selectedStation.position.lng;
-      console.log(`lat: ${lat}, lng: ${lng}`);
-      const baseUrl = 'https://a.mapillary.com/v3/images?';
-      const clientId = 'client_id=SHNGU2JaY3Z4M3hEMWd5eW1CNElhQTowM2FhZjZhZWIyYmVkOTY0';
-      const lookAt = `&lookat=${lat},${lng}`;
-      const finalUrl = baseUrl + clientId + lookAt;
-      return finalUrl;
-    },
-    photoPageUrl() {
-      return `https://www.mapillary.com/app/?focus=photo&pKey=${this.key}`;
-    },
+  },
+  created() {
+    axios
+      .get(`/api/station/${this.selectedStation.id}`)
+      .then((res) => {
+        if (res.data.reviews !== undefined) {
+          this.reviews = res.data.reviews;
+        }
+      })
+      .catch((error) => {
+        console.log(error);
+      });
+
+    EventBus.$on('updatedReview', (review) => {
+      this.$set(this.reviews, review.index, review);
+    });
   },
 };
 </script>
