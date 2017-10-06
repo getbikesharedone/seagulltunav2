@@ -1,6 +1,6 @@
 <template>
   <v-card>
-    <v-card-media :src="thumbnail320wSrc">
+    <v-card-media :src="thumbnail320wSrc" class="black">
       <v-layout column class="media">
         <v-card-title>
           <v-spacer></v-spacer>
