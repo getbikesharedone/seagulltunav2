@@ -12,7 +12,7 @@
       <google-cluster ref="networkCluster">
         <gmap-marker ref="networkMarkers" :key="index" v-for="(m, index) in networkMarkers" :position="m.position" :clickable="true" :draggable="true" @click="createStationMarkers(m)"></gmap-marker>
       </google-cluster>
-      <gmap-marker ref="stationMarkers" :key="index" v-for="(m, index) in stationMarkers" :position="m.position" :clickable="true" :draggable="true" @click="selectStation(m)"></gmap-marker>
+      <gmap-marker ref="stationMarkers" :key="index" v-for="(m, index) in stationMarkers" :position="m.position" :clickable="true" :draggable="true" @click="selectStation(m, index)"></gmap-marker>
     </gmap-map>
 
   </div>
@@ -143,8 +143,9 @@ export default {
     hideNetworkMarkers() {
       this.$refs.networkCluster.$clusterObject.clearMarkers();
     },
-    selectStation(station) {
+    selectStation(station, index) {
       this.selectedStation = station;
+      this.selectedStation.index = index;
       EventBus.$emit('stationSelected', this.selectedStation);
     },
   },
@@ -169,6 +170,9 @@ export default {
   },
   created() {
     this.getNetworks;
+    EventBus.$on('saveSettings', (selectedStation) => {
+      this.$set(this.stations, selectedStation.index, selectedStation);
+    });
   },
   computed: {
     createNetworkMarkers() {

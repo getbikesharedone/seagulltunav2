@@ -15,10 +15,10 @@
               <v-card-text>
                 <v-container grid-list-md>
                   <v-layout wrap>
-                    <v-checkbox label="Open" v-model="open"></v-checkbox>
-                    <v-checkbox label="Safe" v-model="safe"></v-checkbox>
+                    <v-checkbox label="Open" v-model="newOpen"></v-checkbox>
+                    <v-checkbox label="Safe" v-model="newSafe"></v-checkbox>
                     <v-flex>
-                  <v-text-field label="Available Bikes" v-model.number="free" :rules="freeBikeRules" required></v-text-field>
+                  <v-text-field label="Available Bikes" v-model.number="newFree" :rules="freeBikeRules" required></v-text-field>
                 </v-flex>
                   </v-layout>
                 </v-container>
@@ -96,6 +96,9 @@ export default {
       imageKey: '',
       safeCheckbox: false,
       openCheckbox: false,
+      newFree: 0,
+      newOpen: false,
+      newSafe: false,
     };
   },
   methods: {
@@ -104,22 +107,29 @@ export default {
     },
     getImagesSrc() {
       this.thumbnail320wSrc = `https://d1cuyjsrcm0gby.cloudfront.net/${this.imageKey}/thumb-320.jpg`;
-      this.thumbnail640wSrc = `https://d1cuyjsrcm0gby.cloudfront.net/${this.imageKey}/thumb-320.jpg`;
-      this.thumbnail1024wSrc = `https://d1cuyjsrcm0gby.cloudfront.net/${this.imageKey}/thumb-320.jpg`;
-      this.thumbnail2048wSrc = `https://d1cuyjsrcm0gby.cloudfront.net/${this.imageKey}/thumb-320.jpg`;
+      this.thumbnail640wSrc = `https://d1cuyjsrcm0gby.cloudfront.net/${this.imageKey}/thumb-640.jpg`;
+      this.thumbnail1024wSrc = `https://d1cuyjsrcm0gby.cloudfront.net/${this.imageKey}/thumb-1024.jpg`;
+      this.thumbnail2048wSrc = `https://d1cuyjsrcm0gby.cloudfront.net/${this.imageKey}/thumb-2048.jpg`;
     },
     saveSettings() {
       axios
         .post(`/api/station/${this.selectedStation.id}`, {
           id: this.selectedStation.id,
-          free: this.free,
-          open: this.open,
-          safe: this.safe,
+          free: this.newFree,
+          open: this.newOpen,
+          safe: this.newSafe,
         })
         .then((res) => {
+          this.newFree = res.data.free;
+          this.newOpen = res.data.open;
+          this.newSafe = res.data.safe;
           this.free = res.data.free;
           this.open = res.data.open;
           this.safe = res.data.safe;
+          this.selectedStation.free = this.newFree;
+          this.selectedStation.open = this.newOpen;
+          this.selectedStation.safe = this.newSafe;
+          EventBus.$emit('saveSettings', this.selectedStation);
         })
         .catch((error) => {
           console.log(error);
@@ -163,6 +173,9 @@ export default {
       this.empty = selectedStation.empty;
       this.safe = selectedStation.safe;
       this.open = selectedStation.open;
+      this.newEmpty = selectedStation.empty;
+      this.newSafe = selectedStation.safe;
+      this.newOpen = selectedStation.open;
     });
   },
 };
