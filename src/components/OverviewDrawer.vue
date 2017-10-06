@@ -67,6 +67,32 @@
         </v-list-tile-content>
       </v-list-tile>
     </v-list>
+    <v-list two-line>
+      <v-list-tile>
+        <v-list-tile-action></v-list-tile-action>
+        <v-list-tile-content>
+          <v-list-tile-title>{{selectedNetwork.title}}</v-list-tile-title>
+          <v-list-tile-sub-title>Network Name</v-list-tile-sub-title>
+        </v-list-tile-content>
+        <v-list-tile-action>
+        </v-list-tile-action>
+      </v-list-tile>
+      <v-list-tile>
+        <v-list-tile-action>
+        </v-list-tile-action>
+        <v-list-tile-content>
+          <v-list-tile-title>{{selectedNetwork.id}}</v-list-tile-title>
+          <v-list-tile-sub-title>Network ID</v-list-tile-sub-title>
+        </v-list-tile-content>
+      </v-list-tile>
+      <v-list-tile>
+        <v-list-tile-action></v-list-tile-action>
+        <v-list-tile-content>
+          <v-list-tile-title>{{selectedNetwork.position.lat}}, {{selectedNetwork.position.lng}}</v-list-tile-title>
+          <v-list-tile-sub-title>Lat, Lng</v-list-tile-sub-title>
+        </v-list-tile-content>
+      </v-list-tile>
+    </v-list>
   </v-card>
 </template>
 
@@ -99,6 +125,7 @@ export default {
       newFree: 0,
       newOpen: false,
       newSafe: false,
+      selectedNetwork: {},
     };
   },
   methods: {
@@ -176,6 +203,9 @@ export default {
       this.newEmpty = selectedStation.empty;
       this.newSafe = selectedStation.safe;
       this.newOpen = selectedStation.open;
+    });
+    EventBus.$on('selectedNetwork', (selectedNetwork) => {
+      this.selectedNetwork = selectedNetwork;
     });
   },
 };

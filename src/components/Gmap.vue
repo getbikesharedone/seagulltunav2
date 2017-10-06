@@ -132,6 +132,7 @@ export default {
     /* eslint-disable no-unused-expressions */
     createStationMarkers(selectedNetworkMarker) {
       this.selectedNetwork = selectedNetworkMarker;
+      EventBus.$emit('selectedNetwork', this.selectedNetwork);
       /* hideNetworkMarkers() causes slowness when re-adding markers; 
       comment this and createNetworkMarkers() out for better performance */
       // this.hideNetworkMarkers();

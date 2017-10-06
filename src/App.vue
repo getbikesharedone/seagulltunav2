@@ -41,6 +41,7 @@ export default {
       reviewsDrawer: 'ReviewsDrawer',
       overviewDrawer: 'OverviewDrawer',
       selectedStation: {},
+      selectedNetwork: {},
     };
   },
   components: {
@@ -56,12 +57,14 @@ export default {
       this.currentDrawer = 'OverviewDrawer';
     });
     EventBus.$on('addReview', (review) => {
-      console.log(this.selectedStation);
       if (this.selectedStation.reviews !== undefined) {
         this.selectedStation.reviews[review.index].push(review);
       } else {
         this.selectedStation.reviews = [review];
       }
+    });
+    EventBus.$on('selectedNetwork', (selectedNetwork) => {
+      this.selectedNetwork = selectedNetwork;
     });
   },
 };
