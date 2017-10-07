@@ -20,6 +20,8 @@ The repository contains the Bike Network Location Finder website. It's the v2 re
     - [Markers](#markers)
     - [Station Settings](#station-settings)
     - [Station Reviews](#station-reviews)
+- [Team](#team)
+- [License](#license)
 
 ## Installation
 
@@ -103,3 +105,13 @@ You can add a review by clicking the plus icon at the top-left.
 You can edit the reviews by clicking the Edit button located inside each review's card.
 
 ![edit reviews](https://i.imgur.com/Ik0thJH.png)
+
+## Team
+
+[![NeuralSpaz](https://avatars.githubusercontent.com/neuralspaz?v=4&s=200)](https://github.com/NeuralSpaz)  | [![ef](https://avatars.githubusercontent.com/eugenefedoto?v=4&s=200)](https://github.com/eugenefedoto)
+---|---
+[NeuralSpaz ](https://github.com/NeuralSpaz) |[ef](https://github.com/eugenefedoto)
+
+## License
+
+[License](https://github.com/getbikesharedone/seagulltuna/blob/master/LICENSE)
