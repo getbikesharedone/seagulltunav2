@@ -5,7 +5,7 @@
 Bike Network Location Finder
 ======================
 
-The repository contains the Bike Network Location Finder website. It's the v2 rework of https://github.com/getbikesharedone/seagulltuna. The front end utilizes Vue, Vuetify, and Vuex. A Go server for handling API calls and an SQLite server are provided. Over 500 network points and 400k+ station points are included in the database. Webpack is setup for minification, hot-reload, and includes webpack-dev-server for running the website locally.
+The repository contains the Bike Network Location Finder website. It's the v2 rework of https://github.com/getbikesharedone/seagulltuna. The front end utilizes Vue, Vuetify, and Vuex. A Go server for handling API calls and SQLite database are provided. Over 500 network points and 400k+ station points are included in the database. Webpack is setup for minification, hot-reload, and includes webpack-dev-server for running the website locally.
 
 [![Bike Network Location Finder demo](https://i.imgur.com/zvSk9PM.png)](https://seagulltunav2.neuralspaz.com/#//)
 
