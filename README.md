@@ -15,8 +15,6 @@ The repository contains the Bike Network Location Finder website. It's the v2 re
     - [I already have my own server](#i-already-have-my-own-server)
     - [webpack-dev-server](#webpack-dev-server)
 - [Other Useful Commands](#other-useful-commands)
-    - [Extension](#extension)
-    - [Database](#database)
 - [Usage](#usage)
     - [Hamburger](#hamburger)
     - [Markers](#markers)
