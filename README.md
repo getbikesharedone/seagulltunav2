@@ -1,4 +1,4 @@
-<a href="https://aimeos.org/">
+<a href="https://github.com/getbikesharedone/">
     <img src="https://avatars1.githubusercontent.com/u/31987199?v=4&s=200" alt="Getterdone logo" title="Getterdone" align="right" height="60" />
 </a>
 
