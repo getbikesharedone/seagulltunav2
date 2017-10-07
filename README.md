@@ -114,4 +114,4 @@ You can edit the reviews by clicking the Edit button located inside each review'
 
 ## License
 
-[License](https://github.com/getbikesharedone/seagulltuna/blob/master/LICENSE)
+[License](https://github.com/getbikesharedone/seagulltunav2/blob/master/LICENSE.txt)
