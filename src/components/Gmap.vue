@@ -10,9 +10,9 @@
         top: 0;
         bottom: 0;">
       <google-cluster ref="networkCluster">
-        <gmap-marker ref="networkMarkers" :key="index" v-for="(m, index) in networkMarkers" :position="m.position" :clickable="true" :draggable="true" @click="createStationMarkers(m)"></gmap-marker>
+        <gmap-marker ref="networkMarkers" :key="index" v-for="(m, index) in networkMarkers" :position="m.position" :clickable="true" :draggable="false" @click="createStationMarkers(m)"></gmap-marker>
       </google-cluster>
-      <gmap-marker ref="stationMarkers" :key="index" v-for="(m, index) in stationMarkers" :position="m.position" :clickable="true" :draggable="true" @click="selectStation(m, index)"></gmap-marker>
+      <gmap-marker ref="stationMarkers" :key="index" v-for="(m, index) in stationMarkers" :position="m.position" :clickable="true" :draggable="false" @click="selectStation(m, index)"></gmap-marker>
     </gmap-map>
 
   </div>
